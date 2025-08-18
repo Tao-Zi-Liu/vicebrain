@@ -1,7 +1,10 @@
+// src/components/ListItem.js - UPDATED
+
 import React, { useRef } from 'react';
 import { View, Text, StyleSheet, Pressable, Animated, TouchableOpacity } from 'react-native';
 import { Swipeable, State } from 'react-native-gesture-handler';
 
+// Helper functions and Icon components remain the same
 const timeAgo = (timestamp) => {
     if (!timestamp) return 'Just now';
     const now = new Date();
@@ -18,28 +21,24 @@ const timeAgo = (timestamp) => {
     if (interval > 1) return Math.floor(interval) + " minutes ago";
     return "Just now";
 };
-
 const EditIcon = () => (<Text style={styles.iconTextSm}>✏️</Text>);
 const ArchiveIcon = () => (<Text style={styles.iconTextSm}>📦</Text>);
 const TrashIcon = () => (<Text style={styles.iconTextSm}>🗑️</Text>);
 const RestoreIcon = () => (<Text style={styles.iconTextSm}>♻️</Text>);
 
-const ListItem = ({ item, onSelectShinning, onSetStatus, onDeletePermanently, onOpenEditModal, currentView, isMenuVisible, onSwipeableOpen }) => {
+// --- KEY CHANGE 1: Accept the new flingGestureHandlerRef prop ---
+const ListItem = ({
+    item, onSelectShinning, onSetStatus, onDeletePermanently, onOpenEditModal,
+    currentView, isMenuVisible, onSwipeableOpen, flingGestureHandlerRef
+}) => {
     const swipeableRef = useRef(null);
     const scaleAnim = useRef(new Animated.Value(1)).current;
 
-    const closeSwipeable = () => {
-        swipeableRef.current?.close();
-    };
-    
-    const onSwipeableDragStart = () => {
-        Animated.spring(scaleAnim, { toValue: 1.02, useNativeDriver: true }).start();
-    };
+    const closeSwipeable = () => swipeableRef.current?.close();
+    const onSwipeableDragStart = () => Animated.spring(scaleAnim, { toValue: 1.02, useNativeDriver: true }).start();
+    const onSwipeableDragEnd = () => Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true }).start();
 
-    const onSwipeableDragEnd = () => {
-        Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true }).start();
-    };
-
+    // The renderRightActions function remains exactly the same
     const renderRightActions = (progress) => {
         let actions = [];
         if (currentView === 'home') {
@@ -123,6 +122,8 @@ const ListItem = ({ item, onSelectShinning, onSetStatus, onDeletePermanently, on
                     onSwipeableDragStart();
                 }
             }}
+            // --- KEY CHANGE 2: Tell this component to cooperate with the main swipe gesture ---
+            simultaneousHandlers={flingGestureHandlerRef}
         >
             <Animated.View style={{ transform: [{ scale: scaleAnim }], ...styles.cardShadow }}>
                 <Pressable onPress={() => onSelectShinning(item)}>
@@ -137,6 +138,8 @@ const ListItem = ({ item, onSelectShinning, onSetStatus, onDeletePermanently, on
         </Swipeable>
     );
 };
+
+// Styles remain the same
 const styles = StyleSheet.create({
   card: { backgroundColor: 'white', padding: 16, marginHorizontal: 16, marginBottom: 16, borderRadius: 8, borderWidth: 1, borderColor: '#E9ECEF' },
   cardTitle: { fontSize: 16, fontWeight: '600', color: '#212529', marginBottom: 4 },

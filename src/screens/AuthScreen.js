@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, signInWithCredential, signInAnonymously } from 'firebase/auth';
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, signInWithCredential, signInAnonymously,sendEmailVerification } from 'firebase/auth';
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
 
@@ -18,8 +18,8 @@ const AuthScreen = ({ showToast }) => {
     // --- IMPORTANT: Configure Client IDs for both platforms ---
     // You get these from your Google Cloud Console / Firebase Project
     const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-      iosClientId: 'YOUR_IOS_CLIENT_ID',
-      androidClientId: 'YOUR_WEB_CLIENT_ID.apps.googleusercontent.com',
+      iosClientId: '124363270573-64iq1cf8qo3jqf04fu1slchap459lpnn.apps.googleusercontent.com',
+      androidClientId: '124363270573-tu7m95kobf8v1mn1buu4l70cph55c8q6.apps.googleusercontent.com'
       // webClientId is used for Android, do not get confused by the name
     });
 
@@ -46,26 +46,39 @@ const AuthScreen = ({ showToast }) => {
     }, [response]);
 
 
-    const handleEmailAuthentication = async () => {
-        if (email.trim() === '' || password.trim() === '') {
-            showToast('Email and password cannot be empty.', 'ERROR');
-            return;
-        }
-        setLoading(true);
-        try {
-            if (isLogin) {
-                await signInWithEmailAndPassword(auth, email, password);
-                showToast('Welcome back!');
-            } else {
-                await createUserWithEmailAndPassword(auth, email, password);
-                showToast('Account created successfully!');
+   const handleEmailAuthentication = async () => {
+    if (email.trim() === '' || password.trim() === '') {
+        showToast('Email and password cannot be empty.', 'ERROR');
+        return;
+    }
+    setLoading(true);
+    try {
+        if (isLogin) {
+            // --- MODIFICATION START ---
+            const userCredential = await signInWithEmailAndPassword(auth, email, password);
+
+            // Check if the user's email is verified
+            if (!userCredential.user.emailVerified) {
+                showToast('Please verify your email before signing in.', 'ERROR');
+                // Optionally, you could offer to resend the verification email here
+                // await sendEmailVerification(userCredential.user); 
+                setLoading(false); // Stop the loading indicator
+                return; // Abort the login process
             }
-        } catch (error) {
-            handleAuthError(error);
-        } finally {
-            setLoading(false);
+
+            showToast('Welcome back!');
+            // --- MODIFICATION END ---
+        } else {
+            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+            await sendEmailVerification(userCredential.user);
+            showToast('Account created! Please check your email to verify your account.');
         }
-    };
+    } catch (error) {
+        handleAuthError(error);
+    } finally {
+        setLoading(false);
+    }
+};
 
     const handleAnonymousSignIn = async () => {
         setLoading(true);
