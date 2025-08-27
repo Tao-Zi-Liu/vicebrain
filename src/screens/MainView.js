@@ -1,4 +1,4 @@
-// src/screens/MainView.js - COMPLETE VERSION
+// src/screens/MainView.js - CORRECTED VERSION
 
 import React, { useState, useRef, useEffect } from 'react';
 import {
@@ -25,13 +25,20 @@ const MainView = ({
 }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [openSwipeableId, setOpenSwipeableId] = useState(null);
+    const [debugText, setDebugText] = useState('No gesture detected'); // MOVED INSIDE COMPONENT
+    
     const scrollY = useRef(new Animated.Value(0)).current;
     const flatListRef = useRef(null);
     const searchAnim = useRef(new Animated.Value(0)).current;
     const panGestureRef = useRef(null);
     const addButtonScale = useRef(new Animated.Value(1)).current;
-    
     const swipeableRefs = useRef({});
+
+    const handleGestureEvent = (event) => {
+        const { translationX } = event.nativeEvent;
+        setDebugText(`Gesture: ${translationX.toFixed(0)}`);
+        onGestureEvent(event);
+    };
 
     useEffect(() => {
         const toValue = isSearchVisible ? 1 : 0;
@@ -84,6 +91,14 @@ const MainView = ({
 
     return (
         <SafeAreaView style={styles.safeArea}>
+            <PanGestureHandler
+                onGestureEvent={handleGestureEvent}
+                onHandlerStateChange={onHandlerStateChange}
+                activeOffsetX={[10, Infinity]}
+                minDist={10}
+                shouldCancelWhenOutside={false}
+                enabled={!isMenuVisible}
+            >
                 <Animated.View style={{ flex: 1, backgroundColor: '#F8F9FA' }}>
                     <StatusBar barStyle="dark-content" />
                     
@@ -91,9 +106,14 @@ const MainView = ({
                         <TouchableOpacity onPress={onOpenMenu} style={styles.menuButton}>
                             <MenuIcon />
                         </TouchableOpacity>
-                        <Text style={styles.headerTitle}>
-                            {currentView.charAt(0).toUpperCase() + currentView.slice(1)}
-                        </Text>
+                        <View style={{flex: 1, alignItems: 'center'}}>
+                            <Text style={styles.headerTitle}>
+                                {currentView.charAt(0).toUpperCase() + currentView.slice(1)}
+                            </Text>
+                            <Text style={{fontSize: 12, color: 'red', fontWeight: 'bold'}}>
+                                {debugText}
+                            </Text>
+                        </View>
                         <TouchableOpacity style={styles.menuButton}>
                             <FilterIcon />
                         </TouchableOpacity>
@@ -140,7 +160,9 @@ const MainView = ({
                             }}
                         />
                     )}
-                </Animated.View>        
+                </Animated.View>
+            </PanGestureHandler>
+            
             <AnimatedPressable
                 onPress={onOpenAddModal}
                 onPressIn={onPressInAdd}
@@ -177,7 +199,6 @@ const styles = StyleSheet.create({
         alignItems: 'center' 
     },
     headerTitle: { 
-        flex: 1, 
         textAlign: 'center', 
         fontSize: 20, 
         fontWeight: '600', 

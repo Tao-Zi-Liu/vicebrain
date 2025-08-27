@@ -1,8 +1,7 @@
-// src/components/ListItem.js - FIXED SWIPEABLE VERSION
+// src/components/ListItem.js - PanResponder Implementation
 
-import React, { useRef } from 'react';
-import { View, Text, StyleSheet, Pressable, Animated, TouchableOpacity } from 'react-native';
-import { Swipeable, State } from 'react-native-gesture-handler';
+import React, { useRef, useState } from 'react';
+import { View, Text, StyleSheet, Pressable, Animated, TouchableOpacity, PanResponder } from 'react-native';
 
 // Helper functions and Icon components
 const timeAgo = (timestamp) => {
@@ -31,40 +30,92 @@ const ListItem = ({
     item, onSelectShinning, onSetStatus, onDeletePermanently, onOpenEditModal,
     currentView, isMenuVisible, onSwipeableOpen
 }) => {
-    const swipeableRef = useRef(null);
     const scaleAnim = useRef(new Animated.Value(1)).current;
+    const translateX = useRef(new Animated.Value(0)).current;
+    const [showActions, setShowActions] = useState(false);
 
-    const closeSwipeable = () => {
-        if (swipeableRef.current) {
-            swipeableRef.current.close();
+    const closeActions = () => {
+        setShowActions(false);
+        Animated.spring(translateX, {
+            toValue: 0,
+            useNativeDriver: true,
+        }).start();
+    };
+
+    const showActionButtons = () => {
+        setShowActions(true);
+        Animated.spring(translateX, {
+            toValue: -120,
+            useNativeDriver: true,
+        }).start();
+        
+        if (onSwipeableOpen) {
+            onSwipeableOpen(item.id, { current: { close: closeActions } });
         }
     };
 
-    const onSwipeableDragStart = () => {
-        Animated.spring(scaleAnim, { 
-            toValue: 1.02, 
-            useNativeDriver: true 
-        }).start();
-    };
+    const panResponder = PanResponder.create({
+        onStartShouldSetPanResponder: () => false,
+        onMoveShouldSetPanResponder: (evt, gestureState) => {
+            // Only respond to horizontal swipes with minimum movement
+            const isHorizontal = Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
+            const hasMinMovement = Math.abs(gestureState.dx) > 20;
+            const isLeftSwipe = gestureState.dx < 0;
+            
+            // Only capture left swipes, let right swipes pass through
+            return isHorizontal && hasMinMovement && isLeftSwipe && !isMenuVisible;
+        },
+        onPanResponderGrant: () => {
+            Animated.spring(scaleAnim, { 
+                toValue: 1.02, 
+                useNativeDriver: true 
+            }).start();
+        },
+        onPanResponderMove: (evt, gestureState) => {
+            // Only handle left swipes (negative dx)
+            if (gestureState.dx < 0) {
+                const clampedTranslation = Math.max(gestureState.dx, -120);
+                translateX.setValue(clampedTranslation);
+            }
+        },
+        onPanResponderRelease: (evt, gestureState) => {
+            Animated.spring(scaleAnim, { 
+                toValue: 1, 
+                useNativeDriver: true 
+            }).start();
+            
+            // Only process left swipes
+            if (gestureState.dx < 0) {
+                const shouldShowActions = gestureState.dx < -50 || gestureState.vx < -0.5;
+                
+                if (shouldShowActions) {
+                    showActionButtons();
+                } else {
+                    closeActions();
+                }
+            }
+            // Right swipes (gestureState.dx > 0) are completely ignored
+            // This allows them to bubble up to the parent menu handler
+        },
+        onPanResponderTerminate: () => {
+            // Reset animations if gesture is terminated
+            Animated.spring(scaleAnim, { 
+                toValue: 1, 
+                useNativeDriver: true 
+            }).start();
+            closeActions();
+        },
+    });
 
-    const onSwipeableDragEnd = () => {
-        Animated.spring(scaleAnim, { 
-            toValue: 1, 
-            useNativeDriver: true 
-        }).start();
-    };
-
-    const renderRightActions = () => {
-        let actions = [];
-        
+    const getActions = () => {
         if (currentView === 'home') {
-            actions = [
+            return [
                 { 
                     key: 'edit', 
                     color: '#228BE6', 
                     icon: <EditIcon />, 
                     onPress: () => { 
-                        closeSwipeable(); 
+                        closeActions(); 
                         onOpenEditModal(item); 
                     } 
                 },
@@ -73,7 +124,7 @@ const ListItem = ({
                     color: '#FAB005', 
                     icon: <ArchiveIcon />, 
                     onPress: () => { 
-                        closeSwipeable(); 
+                        closeActions(); 
                         onSetStatus(item.id, 'archived'); 
                     } 
                 },
@@ -82,19 +133,19 @@ const ListItem = ({
                     color: '#FA5252', 
                     icon: <TrashIcon />, 
                     onPress: () => { 
-                        closeSwipeable(); 
+                        closeActions(); 
                         onSetStatus(item.id, 'trashed'); 
                     } 
                 }
             ];
         } else if (currentView === 'archive') {
-            actions = [
+            return [
                 { 
                     key: 'restore', 
                     color: '#20C997', 
                     icon: <RestoreIcon />, 
                     onPress: () => { 
-                        closeSwipeable(); 
+                        closeActions(); 
                         onSetStatus(item.id, 'active'); 
                     } 
                 },
@@ -103,19 +154,19 @@ const ListItem = ({
                     color: '#FA5252', 
                     icon: <TrashIcon />, 
                     onPress: () => { 
-                        closeSwipeable(); 
+                        closeActions(); 
                         onSetStatus(item.id, 'trashed'); 
                     } 
                 }
             ];
         } else if (currentView === 'trash') {
-            actions = [
+            return [
                 { 
                     key: 'restore', 
                     color: '#20C997', 
                     icon: <RestoreIcon />, 
                     onPress: () => { 
-                        closeSwipeable(); 
+                        closeActions(); 
                         onSetStatus(item.id, 'active'); 
                     } 
                 },
@@ -124,48 +175,28 @@ const ListItem = ({
                     color: '#FA5252', 
                     icon: <TrashIcon />, 
                     onPress: () => { 
-                        closeSwipeable(); 
+                        closeActions(); 
                         onDeletePermanently(item.id); 
                     } 
                 }
             ];
         }
-
-        // Simple row layout for all views
-        return (
-            <View style={styles.swipeActionContainer}>
-                {actions.map((action) => (
-                    <TouchableOpacity 
-                        key={action.key}
-                        style={[styles.swipeButton, { backgroundColor: action.color }]} 
-                        onPress={action.onPress}
-                    >
-                        {action.icon}
-                    </TouchableOpacity>
-                ))}
-            </View>
-        );
+        return [];
     };
 
     return (
-        <Swipeable
-            ref={swipeableRef}
-            enabled={!isMenuVisible}
-            renderRightActions={renderRightActions}
-            overshootRight={false}
-            onSwipeableWillOpen={() => {
-                if (onSwipeableOpen) {
-                    onSwipeableOpen(item.id, swipeableRef);
-                }
-            }}
-            onSwipeableOpen={onSwipeableDragEnd}
-            onSwipeableClose={onSwipeableDragEnd}
-            onBegan={onSwipeableDragStart}
-            simultaneousHandlers={[]}
-            waitFor={[]}
-        >
-            <Animated.View style={{ transform: [{ scale: scaleAnim }], ...styles.cardShadow }}>
-                <Pressable onPress={() => onSelectShinning(item)}>
+        <View style={styles.container}>
+            <Animated.View 
+                style={[
+                    { transform: [{ scale: scaleAnim }, { translateX }] }, 
+                    styles.cardShadow
+                ]}
+                {...panResponder.panHandlers}
+            >
+                <Pressable 
+                    onPress={() => !showActions && onSelectShinning(item)}
+                    disabled={showActions}
+                >
                     <View style={styles.card}>
                         <Text style={styles.cardTitle}>{item.title}</Text>
                         <Text style={styles.cardContent} numberOfLines={2}>
@@ -184,11 +215,38 @@ const ListItem = ({
                     </View>
                 </Pressable>
             </Animated.View>
-        </Swipeable>
+
+            {/* Action buttons - positioned behind the card */}
+            {showActions && (
+                <View style={styles.actionButtons}>
+                    {getActions().map((action) => (
+                        <TouchableOpacity 
+                            key={action.key}
+                            style={[styles.actionButton, { backgroundColor: action.color }]} 
+                            onPress={action.onPress}
+                        >
+                            {action.icon}
+                        </TouchableOpacity>
+                    ))}
+                </View>
+            )}
+
+            {/* Overlay to close actions when tapping elsewhere */}
+            {showActions && (
+                <TouchableOpacity 
+                    style={styles.overlay} 
+                    onPress={closeActions}
+                    activeOpacity={0}
+                />
+            )}
+        </View>
     );
 };
 
 const styles = StyleSheet.create({
+    container: {
+        position: 'relative',
+    },
     card: { 
         backgroundColor: 'white', 
         padding: 16, 
@@ -242,19 +300,30 @@ const styles = StyleSheet.create({
         fontSize: 16, 
         color: 'white' 
     },
-    swipeActionContainer: {
+    actionButtons: {
+        position: 'absolute',
+        right: 16,
+        top: 0,
+        bottom: 16,
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'flex-end',
-        paddingRight: 10,
+        zIndex: 1,
     },
-    swipeButton: {
+    actionButton: {
         justifyContent: 'center',
         alignItems: 'center',
-        width: 50,
-        height: 50,
-        borderRadius: 25,
-        marginLeft: 10,
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        marginLeft: 5,
+    },
+    overlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 2,
     },
 });
 

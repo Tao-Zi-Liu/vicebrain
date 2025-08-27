@@ -36,6 +36,7 @@ const AppContent = () => {
 
   const onGestureEvent = (event) => {
     const { translationX } = event.nativeEvent;
+    console.log('Gesture event:', translationX);
     let newX = lastPosition.current + translationX;
     newX = Math.max(-MENU_WIDTH, Math.min(newX, 0));
     menuTranslateX.setValue(newX);
@@ -43,10 +44,13 @@ const AppContent = () => {
 
   const onHandlerStateChange = (event) => {
     const { state: gestureState, translationX, velocityX } = event.nativeEvent;
+    console.log('State change:', gestureState, translationX); 
     if (gestureState === State.END) {
       const finalPosition = lastPosition.current + translationX;
       const projectedPosition = finalPosition + 0.2 * velocityX;
-      if (projectedPosition > -MENU_WIDTH / 2) openMenu();
+      if (projectedPosition > -MENU_WIDTH / 3 || translationX > 50) { // Changed threshold
+        openMenu();
+    }
       else closeMenu();
     }
   };
