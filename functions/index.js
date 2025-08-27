@@ -14,7 +14,7 @@ const vertexAi = new VertexAI({
 });
 
 const generativeModel = vertexAi.getGenerativeModel({
-  model: "gemini-1.5-flash-preview-0514",
+  model: "gemini-1.5-flash",
 });
 
 exports.runAiAction = onCall(async (request) => {

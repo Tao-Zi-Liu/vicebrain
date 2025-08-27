@@ -125,4 +125,23 @@ const styles = StyleSheet.create({
     aiButtonText: { fontSize: 20 },
 });
 
+const onGetSuggestedTags = async () => {
+  if (!content) {
+    // You can add a toast message here to inform the user
+    console.log("Please add content to get tag suggestions.");
+    return;
+  }
+  setIsLoading(true);
+  try {
+    const suggested = await getSuggestedTags(content); // Pass content here
+    if (suggested && suggested.length > 0) {
+      setTags([...new Set([...tags, ...suggested])]);
+    }
+  } catch (error) {
+    console.error(error);
+    // You can add a toast message here for the error
+  }
+  setIsLoading(false);
+};
+
 export default AddModal;

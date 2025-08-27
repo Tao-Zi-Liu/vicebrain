@@ -74,12 +74,15 @@ class FirebaseService {
 
     return unsubscribe; // This function will be called to stop listening
   }
-    async getAiSuggestedTags(content) {
-    // This calls the Cloud Function named 'getTagsFromContent'
-    const getTags = httpsCallable(functions, 'getTagsFromContent');
+  async getAiSuggestedTags(content) {
+    const runAiAction = httpsCallable(functions, 'runAiAction');
     try {
-      const result = await getTags({ content });
-      return result.data.tags; // Assuming the function returns { data: { tags: [...] } }
+      const result = await runAiAction({ 
+        action: 'suggestTags', 
+        title: '', 
+        content: content 
+      });
+      return result.data.data; // Note: result.data contains {success: true, data: [...]}
     } catch (error) {
       console.error("Error getting AI tags:", error);
       throw new Error("Failed to get AI suggestions.");
