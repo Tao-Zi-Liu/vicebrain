@@ -1,4 +1,4 @@
-// src/screens/MainView.js - CORRECTED VERSION
+// src/screens/MainView.js - FINAL CORRECTED VERSION
 
 import React, { useState, useRef, useEffect } from 'react';
 import {
@@ -25,7 +25,6 @@ const MainView = ({
 }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [openSwipeableId, setOpenSwipeableId] = useState(null);
-    const [debugText, setDebugText] = useState('No gesture detected'); // MOVED INSIDE COMPONENT
     
     const scrollY = useRef(new Animated.Value(0)).current;
     const flatListRef = useRef(null);
@@ -33,12 +32,6 @@ const MainView = ({
     const panGestureRef = useRef(null);
     const addButtonScale = useRef(new Animated.Value(1)).current;
     const swipeableRefs = useRef({});
-
-    const handleGestureEvent = (event) => {
-        const { translationX } = event.nativeEvent;
-        setDebugText(`Gesture: ${translationX.toFixed(0)}`);
-        onGestureEvent(event);
-    };
 
     useEffect(() => {
         const toValue = isSearchVisible ? 1 : 0;
@@ -92,10 +85,9 @@ const MainView = ({
     return (
         <SafeAreaView style={styles.safeArea}>
             <PanGestureHandler
-                onGestureEvent={handleGestureEvent}
+                onGestureEvent={onGestureEvent}
                 onHandlerStateChange={onHandlerStateChange}
-                activeOffsetX={[10, Infinity]}
-                minDist={10}
+                activeOffsetX={10}  
                 shouldCancelWhenOutside={false}
                 enabled={!isMenuVisible}
             >
@@ -106,14 +98,9 @@ const MainView = ({
                         <TouchableOpacity onPress={onOpenMenu} style={styles.menuButton}>
                             <MenuIcon />
                         </TouchableOpacity>
-                        <View style={{flex: 1, alignItems: 'center'}}>
-                            <Text style={styles.headerTitle}>
-                                {currentView.charAt(0).toUpperCase() + currentView.slice(1)}
-                            </Text>
-                            <Text style={{fontSize: 12, color: 'red', fontWeight: 'bold'}}>
-                                {debugText}
-                            </Text>
-                        </View>
+                        <Text style={styles.headerTitle}>
+                            {currentView.charAt(0).toUpperCase() + currentView.slice(1)}
+                        </Text>
                         <TouchableOpacity style={styles.menuButton}>
                             <FilterIcon />
                         </TouchableOpacity>
@@ -199,6 +186,7 @@ const styles = StyleSheet.create({
         alignItems: 'center' 
     },
     headerTitle: { 
+        flex: 1, 
         textAlign: 'center', 
         fontSize: 20, 
         fontWeight: '600', 

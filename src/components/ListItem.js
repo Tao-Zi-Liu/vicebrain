@@ -1,4 +1,4 @@
-// src/components/ListItem.js - PanResponder Implementation
+// src/components/ListItem.js - COMPLETE FIXED VERSION
 
 import React, { useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Animated, TouchableOpacity, PanResponder } from 'react-native';
@@ -42,40 +42,51 @@ const ListItem = ({
         }).start();
     };
 
-    const showActionButtons = () => {
-        setShowActions(true);
-        Animated.spring(translateX, {
-            toValue: -120,
-            useNativeDriver: true,
-        }).start();
-        
+    // Add this function to handle closing other actions
+    const handleNewSwipe = () => {
         if (onSwipeableOpen) {
             onSwipeableOpen(item.id, { current: { close: closeActions } });
         }
     };
 
+    const showActionButtons = () => {
+        setShowActions(true);
+        Animated.spring(translateX, {
+            toValue: -80,  // Reduced from -120 to -80
+            useNativeDriver: true,
+        }).start();
+        
+        handleNewSwipe(); // This will close other open actions
+    };
+
     const panResponder = PanResponder.create({
         onStartShouldSetPanResponder: () => false,
         onMoveShouldSetPanResponder: (evt, gestureState) => {
-            // Only respond to horizontal swipes with minimum movement
-            const isHorizontal = Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
-            const hasMinMovement = Math.abs(gestureState.dx) > 20;
-            const isLeftSwipe = gestureState.dx < 0;
+            const isHorizontal = Math.abs(gestureState.dx) > Math.abs(gestureState.dy) *2;
+            const hasMinMovement = Math.abs(gestureState.dx) > 20; 
+            const isLeftSwipe = gestureState.dx < -15;
             
-            // Only capture left swipes, let right swipes pass through
-            return isHorizontal && hasMinMovement && isLeftSwipe && !isMenuVisible;
+            // CRITICAL: Only capture clear LEFT swipes, let right swipes pass through
+            return isHorizontal && hasMinMovement && isLeftSwipe && !isMenuVisible && !showActions;
         },
         onPanResponderGrant: () => {
             Animated.spring(scaleAnim, { 
                 toValue: 1.02, 
                 useNativeDriver: true 
             }).start();
+            // Don't show actions immediately - wait for meaningful swipe distance
         },
         onPanResponderMove: (evt, gestureState) => {
             // Only handle left swipes (negative dx)
             if (gestureState.dx < 0) {
-                const clampedTranslation = Math.max(gestureState.dx, -120);
+                const clampedTranslation = Math.max(gestureState.dx, -80);
                 translateX.setValue(clampedTranslation);
+                
+                // Show actions only after crossing threshold to prevent flashing
+                if (gestureState.dx < -25 && !showActions) {
+                    setShowActions(true);
+                    handleNewSwipe();
+                }
             }
         },
         onPanResponderRelease: (evt, gestureState) => {
@@ -86,16 +97,22 @@ const ListItem = ({
             
             // Only process left swipes
             if (gestureState.dx < 0) {
-                const shouldShowActions = gestureState.dx < -50 || gestureState.vx < -0.5;
+                const shouldKeepActions = gestureState.dx < -30 || gestureState.vx < -0.3;
                 
-                if (shouldShowActions) {
-                    showActionButtons();
+                if (shouldKeepActions) {
+                    // Snap to open position
+                    Animated.spring(translateX, {
+                        toValue: -80,
+                        useNativeDriver: true,
+                    }).start();
                 } else {
+                    // Snap back to closed position
                     closeActions();
                 }
+            } else {
+                // If it's not a left swipe, ensure actions are hidden
+                closeActions();
             }
-            // Right swipes (gestureState.dx > 0) are completely ignored
-            // This allows them to bubble up to the parent menu handler
         },
         onPanResponderTerminate: () => {
             // Reset animations if gesture is terminated
@@ -216,18 +233,45 @@ const ListItem = ({
                 </Pressable>
             </Animated.View>
 
-            {/* Action buttons - positioned behind the card */}
+            {/* Action buttons with triangular layout for home, row for others */}
             {showActions && (
-                <View style={styles.actionButtons}>
-                    {getActions().map((action) => (
-                        <TouchableOpacity 
-                            key={action.key}
-                            style={[styles.actionButton, { backgroundColor: action.color }]} 
-                            onPress={action.onPress}
-                        >
-                            {action.icon}
-                        </TouchableOpacity>
-                    ))}
+                <View style={currentView === 'home' ? styles.actionButtonsTriangle : styles.actionButtonsRow}>
+                    {currentView === 'home' ? (
+                        // Triangular arrangement for home view (3 actions)
+                        <>
+                            <TouchableOpacity 
+                                style={[styles.actionButton, { backgroundColor: getActions()[0].color }]} 
+                                onPress={getActions()[0].onPress}
+                            >
+                                {getActions()[0].icon}
+                            </TouchableOpacity>
+                            <View style={styles.bottomRow}>
+                                <TouchableOpacity 
+                                    style={[styles.actionButton, { backgroundColor: getActions()[1].color, marginRight: 3 }]} 
+                                    onPress={getActions()[1].onPress}
+                                >
+                                    {getActions()[1].icon}
+                                </TouchableOpacity>
+                                <TouchableOpacity 
+                                    style={[styles.actionButton, { backgroundColor: getActions()[2].color }]} 
+                                    onPress={getActions()[2].onPress}
+                                >
+                                    {getActions()[2].icon}
+                                </TouchableOpacity>
+                            </View>
+                        </>
+                    ) : (
+                        // Row arrangement for archive/trash views (2 actions)
+                        getActions().map((action) => (
+                            <TouchableOpacity 
+                                key={action.key}
+                                style={[styles.actionButton, { backgroundColor: action.color }]} 
+                                onPress={action.onPress}
+                            >
+                                {action.icon}
+                            </TouchableOpacity>
+                        ))
+                    )}
                 </View>
             )}
 
@@ -300,7 +344,24 @@ const styles = StyleSheet.create({
         fontSize: 16, 
         color: 'white' 
     },
-    actionButtons: {
+    // Triangular layout for home view
+    actionButtonsTriangle: {
+        position: 'absolute',
+        right: 16,
+        top: 0,
+        bottom: 16,
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 1,
+        width: 80,
+    },
+    bottomRow: {
+        flexDirection: 'row',
+        marginTop: 3,
+    },
+    // Row layout for archive/trash views
+    actionButtonsRow: {
         position: 'absolute',
         right: 16,
         top: 0,
@@ -312,10 +373,10 @@ const styles = StyleSheet.create({
     actionButton: {
         justifyContent: 'center',
         alignItems: 'center',
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        marginLeft: 5,
+        width: 30,
+        height: 30,
+        borderRadius: 15,
+        marginLeft: 3,
     },
     overlay: {
         position: 'absolute',
