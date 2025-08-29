@@ -16,15 +16,22 @@ import {
 import Svg, { Circle, Line, Text as SvgText, G } from 'react-native-svg';
 import { useAppContext } from '../context/AppContext';
 import { useKnowledgeGraph } from '../hooks/useKnowledgeGraph';
+import { useGestureContext } from '../context/GestureContext';
+import useGestureManager from '../hooks/useGestureManager';
+import { FlingGestureHandler, Directions, State } from 'react-native-gesture-handler';
 
 const { width, height } = Dimensions.get('window');
 const GRAPH_WIDTH = width - 40;
 const GRAPH_HEIGHT = height - 200;
 
 const KnowledgeGraphScreen = ({ onBack, onSelectShinning }) => {
+  const { gestureState } = useGestureContext();
+  const { createBackGestureHandler } = useGestureManager();
   const { state, actions } = useAppContext();
   const { userProfile } = state;
   const { graphData, graphStats, findShortestPath } = useKnowledgeGraph();
+
+  const backGestureHandler = createBackGestureHandler(onBack);
   
   const [selectedNodes, setSelectedNodes] = useState([]);
   const [showPathModal, setShowPathModal] = useState(false);
@@ -301,6 +308,12 @@ const KnowledgeGraphScreen = ({ onBack, onSelectShinning }) => {
   );
 
   return (
+      <FlingGestureHandler
+      direction={Directions.RIGHT}
+      enabled={!gestureState.isMenuOpen}
+      onHandlerStateChange={backGestureHandler.onHandlerStateChange}
+      >
+
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
       <Header />
@@ -308,6 +321,7 @@ const KnowledgeGraphScreen = ({ onBack, onSelectShinning }) => {
       <GraphView />
       <StatsModal />
     </SafeAreaView>
+    </FlingGestureHandler>
   );
 };
 

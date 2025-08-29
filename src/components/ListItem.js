@@ -2,6 +2,7 @@
 
 import React, { useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Animated, TouchableOpacity, PanResponder } from 'react-native';
+import { useGestureContext } from '../context/GestureContext';
 
 // Helper functions and Icon components
 const timeAgo = (timestamp) => {
@@ -30,6 +31,8 @@ const ListItem = ({
     item, onSelectShinning, onSetStatus, onDeletePermanently, onOpenEditModal,
     currentView, isMenuVisible, onSwipeableOpen
 }) => {
+    const { gestureState } = useGestureContext();
+    const swipeableRef = useRef(null);
     const scaleAnim = useRef(new Animated.Value(1)).current;
     const translateX = useRef(new Animated.Value(0)).current;
     const [showActions, setShowActions] = useState(false);
@@ -42,7 +45,6 @@ const ListItem = ({
         }).start();
     };
 
-    // Add this function to handle closing other actions
     const handleNewSwipe = () => {
         if (onSwipeableOpen) {
             onSwipeableOpen(item.id, { current: { close: closeActions } });
@@ -68,7 +70,7 @@ const ListItem = ({
             
             // CRITICAL: Only capture clear LEFT swipes, let right swipes pass through
             return isHorizontal && hasMinMovement && isLeftSwipe && !isMenuVisible && !showActions;
-        },
+            },
         onPanResponderGrant: () => {
             Animated.spring(scaleAnim, { 
                 toValue: 1.02, 
@@ -81,14 +83,13 @@ const ListItem = ({
             if (gestureState.dx < 0) {
                 const clampedTranslation = Math.max(gestureState.dx, -80);
                 translateX.setValue(clampedTranslation);
-                
-                // Show actions only after crossing threshold to prevent flashing
-                if (gestureState.dx < -25 && !showActions) {
+                if (Math.abs(gestureState.dx) > 15 && !showActions) {
                     setShowActions(true);
                     handleNewSwipe();
                 }
             }
         },
+
         onPanResponderRelease: (evt, gestureState) => {
             Animated.spring(scaleAnim, { 
                 toValue: 1, 
@@ -100,6 +101,9 @@ const ListItem = ({
                 const shouldKeepActions = gestureState.dx < -30 || gestureState.vx < -0.3;
                 
                 if (shouldKeepActions) {
+                    
+                    setShowActions(true);
+                    handleNewSwipe();
                     // Snap to open position
                     Animated.spring(translateX, {
                         toValue: -80,

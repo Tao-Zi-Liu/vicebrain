@@ -7,6 +7,9 @@ import {
 } from 'react-native';
 import { FlatList, PanGestureHandler } from 'react-native-gesture-handler';
 import ListItem from '../components/ListItem';
+import { useGestureContext } from '../context/GestureContext';
+import useGestureManager from '../hooks/useGestureManager';
+
 
 const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -19,12 +22,13 @@ const MainView = ({
     shinnings, loading, currentView = 'home',
     onSetStatus, onDeletePermanently,
     onSelectShinning, onOpenMenu, onOpenAddModal, onOpenEditModal,
-    onGestureEvent, onHandlerStateChange,
     isSearchVisible, onToggleSearch,
     isMenuVisible
 }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [openSwipeableId, setOpenSwipeableId] = useState(null);
+    const { gestureState } = useGestureContext();
+    const { onGestureEvent, onHandlerStateChange } = useGestureManager();
     
     const scrollY = useRef(new Animated.Value(0)).current;
     const flatListRef = useRef(null);
@@ -46,11 +50,12 @@ const MainView = ({
     }, [isSearchVisible]);
 
     const handleSwipeableOpen = (id, ref) => {
-        if (openSwipeableId && openSwipeableId !== id) {
-            swipeableRefs.current[openSwipeableId]?.close();
-        }
-        swipeableRefs.current[id] = ref.current;
-        setOpenSwipeableId(id);
+    if (gestureState.isMenuOpen) return;
+    if (openSwipeableId && openSwipeableId !== id) {
+        swipeableRefs.current[openSwipeableId]?.close();
+    }
+    swipeableRefs.current[id] = ref.current;
+    setOpenSwipeableId(id);
     };
 
     const handleScroll = Animated.event(
@@ -87,68 +92,73 @@ const MainView = ({
             <PanGestureHandler
                 onGestureEvent={onGestureEvent}
                 onHandlerStateChange={onHandlerStateChange}
-                activeOffsetX={10}  
+                minPointers={1}
+                maxPointers={1}
+                activeOffsetX={[-15, 999]}
+                failOffsetX={[-999, 15]}
+                activeOffsetY={[-999, 999]}
+                enabled={!gestureState.isMenuOpen}
+                simultaneousHandlers={[]}
                 shouldCancelWhenOutside={false}
-                enabled={!isMenuVisible}
             >
-                <Animated.View style={{ flex: 1, backgroundColor: '#F8F9FA' }}>
-                    <StatusBar barStyle="dark-content" />
-                    
-                    <View style={styles.header}>
-                        <TouchableOpacity onPress={onOpenMenu} style={styles.menuButton}>
-                            <MenuIcon />
-                        </TouchableOpacity>
-                        <Text style={styles.headerTitle}>
-                            {currentView.charAt(0).toUpperCase() + currentView.slice(1)}
-                        </Text>
-                        <TouchableOpacity style={styles.menuButton}>
-                            <FilterIcon />
-                        </TouchableOpacity>
-                    </View>
-                    
-                    <Animated.View style={[styles.searchBarContainer, { height: searchBarHeight }]}>
-                        <TextInput 
-                            style={styles.searchInput} 
-                            placeholder="Search Shinnings..." 
-                            value={searchQuery} 
-                            onChangeText={setSearchQuery} 
-                        />
-                        <TouchableOpacity onPress={onToggleSearch}>
-                            <Text>Cancel</Text>
-                        </TouchableOpacity>
-                    </Animated.View>
-                    
-                    {loading ? (
-                        <View style={styles.loadingContainer}>
-                            <ActivityIndicator size="large" color="#9CA3AF" />
-                        </View>
-                    ) : (
-                        <AnimatedFlatList
-                            ref={flatListRef}
-                            data={filteredShinnings}
-                            keyExtractor={(item) => item.id}
-                            onScroll={handleScroll}
-                            scrollEventThrottle={16}
-                            renderItem={({ item }) => (
-                                <ListItem
-                                    item={item}
-                                    onSelectShinning={onSelectShinning}
-                                    onSetStatus={onSetStatus}
-                                    onDeletePermanently={onDeletePermanently}
-                                    onOpenEditModal={onOpenEditModal}
-                                    currentView={currentView}
-                                    onSwipeableOpen={handleSwipeableOpen}
-                                    isMenuVisible={isMenuVisible}
-                                />
-                            )}
-                            contentContainerStyle={{ 
-                                paddingBottom: 120, 
-                                flexGrow: 1 
-                            }}
-                        />
-                    )}
+
+            <Animated.View style={{ flex: 1, backgroundColor: '#F8F9FA' }}>
+                <StatusBar barStyle="dark-content" />            
+                <View style={styles.header}>
+                    <TouchableOpacity onPress={onOpenMenu} style={styles.menuButton}>
+                        <MenuIcon />
+                    </TouchableOpacity>
+                    <Text style={styles.headerTitle}>
+                        {currentView.charAt(0).toUpperCase() + currentView.slice(1)}
+                    </Text>
+                    <TouchableOpacity style={styles.menuButton}>
+                        <FilterIcon />
+                    </TouchableOpacity>
+                </View>
+                
+                <Animated.View style={[styles.searchBarContainer, { height: searchBarHeight }]}>
+                    <TextInput 
+                        style={styles.searchInput} 
+                        placeholder="Search Shinnings..." 
+                        value={searchQuery} 
+                        onChangeText={setSearchQuery} 
+                    />
+                    <TouchableOpacity onPress={onToggleSearch}>
+                        <Text>Cancel</Text>
+                    </TouchableOpacity>
                 </Animated.View>
-            </PanGestureHandler>
+                
+                {loading ? (
+                    <View style={styles.loadingContainer}>
+                        <ActivityIndicator size="large" color="#9CA3AF" />
+                    </View>
+                ) : (
+                    <AnimatedFlatList
+                        ref={flatListRef}
+                        data={filteredShinnings}
+                        keyExtractor={(item) => item.id}
+                        onScroll={handleScroll}
+                        scrollEventThrottle={16}
+                        renderItem={({ item }) => (
+                            <ListItem
+                                item={item}
+                                onSelectShinning={onSelectShinning}
+                                onSetStatus={onSetStatus}
+                                onDeletePermanently={onDeletePermanently}
+                                onOpenEditModal={onOpenEditModal}
+                                currentView={currentView}
+                                onSwipeableOpen={handleSwipeableOpen}
+                                isMenuVisible={gestureState.isMenuOpen}
+                            />
+                        )}
+                        contentContainerStyle={{ 
+                            paddingBottom: 120, 
+                            flexGrow: 1 
+                        }}
+                    />
+                )}
+            </Animated.View>
+        </PanGestureHandler>
             
             <AnimatedPressable
                 onPress={onOpenAddModal}

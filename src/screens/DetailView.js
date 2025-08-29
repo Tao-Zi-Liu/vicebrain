@@ -6,6 +6,8 @@ import {
   TouchableOpacity, ScrollView
 } from 'react-native';
 import { FlingGestureHandler, Directions, State } from 'react-native-gesture-handler';
+import { useGestureContext } from '../context/GestureContext';
+import useGestureManager from '../hooks/useGestureManager';
 
 // Helper Function and Icon Components
 const formatFullDate = (timestamp) => {
@@ -21,6 +23,9 @@ const DetailView = ({
     shinning, onBack, onOpenAiMenu, isAILoading, aiError, linkedData,
     onSelectLinkedItem, onOpenLink, isMenuVisible
 }) => {
+    const { gestureState } = useGestureContext();
+    const { createBackGestureHandler } = useGestureManager();
+    const backGestureHandler = createBackGestureHandler(onBack);
 
     // --- NEW: Helper Function to render a specific type of AI result ---
     const renderAISection = (type, results) => {
@@ -72,12 +77,8 @@ const DetailView = ({
     return (
         <FlingGestureHandler
             direction={Directions.RIGHT}
-            enabled={!isMenuVisible}
-            onHandlerStateChange={({ nativeEvent }) => {
-                if (nativeEvent.state === State.ACTIVE) {
-                    onBack();
-                }
-            }}
+            enabled={!gestureState.isMenuOpen}
+            onHandlerStateChange={backGestureHandler.onHandlerStateChange}      
         >
             <SafeAreaView style={styles.safeArea}>
                 <StatusBar barStyle="dark-content" />

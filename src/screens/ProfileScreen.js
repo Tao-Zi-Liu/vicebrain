@@ -1,26 +1,31 @@
 import React, { useState, useEffect, memo } from 'react'; // <-- IMPORT memo
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  Image,
-  Alert,
-  Switch,
-  SafeAreaView,
-  StatusBar,
-  Modal,
-  ActivityIndicator
-} from 'react-native';
+import {  View,  
+          Text,  
+          StyleSheet,  
+          ScrollView,  
+          TouchableOpacity,  
+          TextInput,  
+          Image,  
+          Alert,  
+          Switch,  
+          SafeAreaView,  
+          StatusBar,  
+          Modal,  
+          ActivityIndicator
+        } from 'react-native';
 import { useAppContext } from '../context/AppContext';
 import firebaseService from '../services/firebaseService';
+import { useGestureContext } from '../context/GestureContext';
+import useGestureManager from '../hooks/useGestureManager';
+import { FlingGestureHandler, Directions, State } from 'react-native-gesture-handler';
 
 const ProfileScreen = ({ onBack }) => {
   const { state, actions } = useAppContext();
+  const { gestureState } = useGestureContext();
+  const { createBackGestureHandler } = useGestureManager();
+
+  const backGestureHandler = createBackGestureHandler(onBack);
   const { user, userProfile } = state;
-  
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({
     displayName: '',
@@ -414,6 +419,11 @@ const ProfileScreen = ({ onBack }) => {
   };
 
   return (
+    <FlingGestureHandler
+    direction={Directions.RIGHT}
+    enabled={!gestureState.isMenuOpen}
+    onHandlerStateChange={backGestureHandler.onHandlerStateChange}
+    >
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
       <Header />
@@ -454,11 +464,12 @@ const ProfileScreen = ({ onBack }) => {
 
       <PasswordModal />
     </SafeAreaView>
+  </FlingGestureHandler>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  container:{
     flex: 1,
     backgroundColor: '#F8F9FA',
   },
@@ -771,7 +782,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     marginTop: 8,
     guestCard: {
-    backgroundColor: '#FFF9DB', // A soft yellow to draw attention
+    backgroundColor: '#FFF9DB',
     borderRadius: 12,
     padding: 20,
     borderColor: '#FAEBBC',
