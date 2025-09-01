@@ -1,6 +1,6 @@
-// src/components/ListItem.js - COMPLETE FIXED VERSION
+// src/components/ListItem.js - FIXED THRESHOLDS VERSION
 
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, Animated, TouchableOpacity, PanResponder } from 'react-native';
 import { useGestureContext } from '../context/GestureContext';
 
@@ -37,6 +37,13 @@ const ListItem = ({
     const translateX = useRef(new Animated.Value(0)).current;
     const [showActions, setShowActions] = useState(false);
 
+    useEffect(() => {
+    // Close item actions when main menu is opened
+        if (isMenuVisible && showActions) {
+            closeActions();
+        }
+    }, [isMenuVisible]);
+
     const closeActions = () => {
         setShowActions(false);
         Animated.spring(translateX, {
@@ -51,75 +58,62 @@ const ListItem = ({
         }
     };
 
-    const showActionButtons = () => {
-        setShowActions(true);
-        Animated.spring(translateX, {
-            toValue: -80,  // Reduced from -120 to -80
-            useNativeDriver: true,
-        }).start();
-        
-        handleNewSwipe(); // This will close other open actions
-    };
-
     const panResponder = PanResponder.create({
         onStartShouldSetPanResponder: () => false,
         onMoveShouldSetPanResponder: (evt, gestureState) => {
-            const isHorizontal = Math.abs(gestureState.dx) > Math.abs(gestureState.dy) *2;
-            const hasMinMovement = Math.abs(gestureState.dx) > 20; 
-            const isLeftSwipe = gestureState.dx < -15;
+            const isHorizontal = Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 2;
+            const hasMinMovement = Math.abs(gestureState.dx) > 10; // FIXED: Reduced from 20 to 10
+            const isLeftSwipe = gestureState.dx < -10; // FIXED: Consistent with hasMinMovement
             
-            // CRITICAL: Only capture clear LEFT swipes, let right swipes pass through
             return isHorizontal && hasMinMovement && isLeftSwipe && !isMenuVisible && !showActions;
-            },
+        },
         onPanResponderGrant: () => {
             Animated.spring(scaleAnim, { 
                 toValue: 1.02, 
                 useNativeDriver: true 
             }).start();
-            // Don't show actions immediately - wait for meaningful swipe distance
         },
         onPanResponderMove: (evt, gestureState) => {
-            // Only handle left swipes (negative dx)
             if (gestureState.dx < 0) {
                 const clampedTranslation = Math.max(gestureState.dx, -80);
                 translateX.setValue(clampedTranslation);
+                
+                // FIXED: Show actions when swipe reaches 25px (consistent threshold)
                 if (Math.abs(gestureState.dx) > 15 && !showActions) {
                     setShowActions(true);
                     handleNewSwipe();
                 }
             }
         },
-
         onPanResponderRelease: (evt, gestureState) => {
-            Animated.spring(scaleAnim, { 
-                toValue: 1, 
-                useNativeDriver: true 
-            }).start();
-            
-            // Only process left swipes
-            if (gestureState.dx < 0) {
-                const shouldKeepActions = gestureState.dx < -30 || gestureState.vx < -0.3;
+                Animated.spring(scaleAnim, { 
+                    toValue: 1, 
+                    useNativeDriver: true 
+                }).start();
                 
-                if (shouldKeepActions) {
+                if (gestureState.dx < 0) {
+                    // FIXED: More forgiving logic for fast swipes
+                    const swipeDistance = Math.abs(gestureState.dx);
+                    const swipeVelocity = Math.abs(gestureState.vx);
                     
-                    setShowActions(true);
-                    handleNewSwipe();
-                    // Snap to open position
-                    Animated.spring(translateX, {
-                        toValue: -80,
-                        useNativeDriver: true,
-                    }).start();
+                    // Keep actions if: distance > 30px OR (distance > 20px AND fast swipe)
+                    const shouldKeepActions = swipeDistance > 20 || (swipeDistance > 215 && swipeVelocity > 0.8);
+                    
+                    if (shouldKeepActions) {
+                        setShowActions(true);
+                        handleNewSwipe();
+                        Animated.spring(translateX, {
+                            toValue: -80,
+                            useNativeDriver: true,
+                        }).start();
+                    } else {
+                        closeActions();
+                    }
                 } else {
-                    // Snap back to closed position
                     closeActions();
                 }
-            } else {
-                // If it's not a left swipe, ensure actions are hidden
-                closeActions();
-            }
-        },
+            },
         onPanResponderTerminate: () => {
-            // Reset animations if gesture is terminated
             Animated.spring(scaleAnim, { 
                 toValue: 1, 
                 useNativeDriver: true 
@@ -237,11 +231,10 @@ const ListItem = ({
                 </Pressable>
             </Animated.View>
 
-            {/* Action buttons with triangular layout for home, row for others */}
+            {/* Action buttons */}
             {showActions && (
                 <View style={currentView === 'home' ? styles.actionButtonsTriangle : styles.actionButtonsRow}>
                     {currentView === 'home' ? (
-                        // Triangular arrangement for home view (3 actions)
                         <>
                             <TouchableOpacity 
                                 style={[styles.actionButton, { backgroundColor: getActions()[0].color }]} 
@@ -265,7 +258,6 @@ const ListItem = ({
                             </View>
                         </>
                     ) : (
-                        // Row arrangement for archive/trash views (2 actions)
                         getActions().map((action) => (
                             <TouchableOpacity 
                                 key={action.key}
@@ -321,6 +313,7 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.23,
         shadowRadius: 2.62,
         elevation: 4,
+        zIndex: 1,
     },
     tagsContainer: { 
         flexDirection: 'row', 
@@ -348,7 +341,6 @@ const styles = StyleSheet.create({
         fontSize: 16, 
         color: 'white' 
     },
-    // Triangular layout for home view
     actionButtonsTriangle: {
         position: 'absolute',
         right: 16,
@@ -357,14 +349,13 @@ const styles = StyleSheet.create({
         flexDirection: 'column',
         justifyContent: 'center',
         alignItems: 'center',
-        zIndex: 1,
+        zIndex: 0,
         width: 80,
     },
     bottomRow: {
         flexDirection: 'row',
         marginTop: 3,
     },
-    // Row layout for archive/trash views
     actionButtonsRow: {
         position: 'absolute',
         right: 16,
@@ -372,7 +363,7 @@ const styles = StyleSheet.create({
         bottom: 16,
         flexDirection: 'row',
         alignItems: 'center',
-        zIndex: 1,
+        zIndex: 0,
     },
     actionButton: {
         justifyContent: 'center',

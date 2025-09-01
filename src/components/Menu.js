@@ -1,4 +1,4 @@
-// src/components/Menu.js - FINAL
+// src/components/Menu.js - OPACITY ANIMATION VERSION
 
 import React from 'react';
 import {
@@ -23,6 +23,24 @@ const MenuItem = ({ iconName, iconSet = 'MaterialCommunityIcons', text, onPress 
 };
 
 const Menu = ({ isVisible, onClose, onNavigate, onSearch, onSignOut, translateX }) => {
+  // Create a simple opacity animation based on isVisible
+  const [opacity] = React.useState(new Animated.Value(0));
+  
+  React.useEffect(() => {
+    if (isVisible) {
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true
+      }).start();
+    } else {
+      Animated.timing(opacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true
+      }).start();
+    }
+  }, [isVisible]);
 
   const handleSignOutWithAlert = () => {
     onClose();
@@ -34,22 +52,32 @@ const Menu = ({ isVisible, onClose, onNavigate, onSearch, onSignOut, translateX 
     );
   };
 
-  if (!isVisible && translateX._value === -MENU_WIDTH) return null;
+  if (!isVisible) return null;
 
   return (
-    <Modal transparent visible={true}>
+    <Modal transparent visible={isVisible} animationType="slide">
       <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose}>
-        <Animated.View style={[styles.menuContainer, { transform: [{ translateX }] }]}>
+        <Animated.View 
+          style={[
+            styles.menuContainer,
+            {
+              opacity: opacity
+            }
+          ]}
+        >
           <SafeAreaView style={{ flex: 1, justifyContent: 'space-between' }}>
             <View>
-              <View style={styles.menuHeader}><Text style={styles.menuTitle}>Vicebrain</Text></View>
-              {/* Add the Search menu item */}
+              <View style={styles.menuHeader}>
+                <Text style={styles.menuTitle}>Vicebrain</Text>
+              </View>
+              
               <MenuItem iconName="magnify" text="Search" onPress={onSearch} />
               <MenuItem iconName="fire" text="Shinning Firing" onPress={() => onNavigate('home')} />
               <MenuItem iconName="archive-arrow-down-outline" text="Archive" onPress={() => onNavigate('archive')} />
               <MenuItem iconName="dizzy" iconSet="FontAwesome5" text="Trash" onPress={() => onNavigate('trash')} />
               <MenuItem iconName="graphql" text="Graph" onPress={() => onNavigate('graph')} />
             </View>
+            
             <View>
               <MenuItem iconName="user-secret" iconSet="FontAwesome5" text="Profile" onPress={() => onNavigate('profile')} />
               <MenuItem iconName="sign-out-alt" iconSet="FontAwesome5" text="Sign Out" onPress={handleSignOutWithAlert} />
@@ -62,13 +90,45 @@ const Menu = ({ isVisible, onClose, onNavigate, onSearch, onSignOut, translateX 
 };
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)'},
-  menuContainer: { width: MENU_WIDTH, height: '100%', backgroundColor: '#F8F9FA', position: 'absolute' },
-  menuHeader: { paddingHorizontal: 20, paddingVertical: 30, borderBottomWidth: 1, borderBottomColor: '#E9ECEF' },
-  menuTitle: { fontSize: 24, fontWeight: 'bold' },
-  menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15, paddingHorizontal: 20 },
-  menuIcon: { marginRight: 20, width: 24, textAlign: 'center', color: '#495057' },
-  menuItemText: { fontSize: 18, fontWeight: '500', color: '#212529' },
+  overlay: { 
+    flex: 1, 
+    backgroundColor: 'rgba(0,0,0,0.4)'
+  },
+  menuContainer: { 
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    width: MENU_WIDTH, 
+    height: '100%', 
+    backgroundColor: '#F8F9FA'
+  },
+  menuHeader: { 
+    paddingHorizontal: 20, 
+    paddingVertical: 30, 
+    borderBottomWidth: 1, 
+    borderBottomColor: '#E9ECEF' 
+  },
+  menuTitle: { 
+    fontSize: 24, 
+    fontWeight: 'bold' 
+  },
+  menuItem: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    paddingVertical: 15, 
+    paddingHorizontal: 20 
+  },
+  menuIcon: { 
+    marginRight: 20, 
+    width: 24, 
+    textAlign: 'center', 
+    color: '#495057' 
+  },
+  menuItemText: { 
+    fontSize: 18, 
+    fontWeight: '500', 
+    color: '#212529' 
+  },
 });
 
 export default Menu;

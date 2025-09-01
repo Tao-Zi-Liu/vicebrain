@@ -11,29 +11,39 @@ const useGestureManager = () => {
   const lastPosition = useRef(-MENU_WIDTH);
 
   const openMenu = useCallback(() => {
+    console.log('openMenu called, current value:', menuTranslateX._value);
     gestureActions.setMenuOpen(true);
-    Animated.spring(menuTranslateX, { 
-      toValue: 0, 
-      useNativeDriver: true 
-    }).start(() => {
-      lastPosition.current = 0;
-      gestureActions.setMenuTranslateX(0);
-    });
-  }, [gestureActions, menuTranslateX]);
+    
+    menuTranslateX.setValue(-MENU_WIDTH);
+
+    Animated.timing(menuTranslateX, { 
+              toValue: 0, 
+              duration: 300,
+              useNativeDriver: true
+          }).start((finished) => {
+              console.log('Menu animation finished:', finished);
+              console.log('Final animated value:', menuTranslateX._value);
+              if (finished) {
+                  lastPosition.current = 0;
+                  gestureActions.setMenuTranslateX(0);
+              }
+          });
+      }, [gestureActions, menuTranslateX, MENU_WIDTH]);
 
   const closeMenu = useCallback((onComplete) => {
-    Animated.spring(menuTranslateX, { 
-      toValue: -MENU_WIDTH, 
-      useNativeDriver: true 
-    }).start(() => {
-      lastPosition.current = -MENU_WIDTH;
-      gestureActions.setMenuOpen(false);
-      gestureActions.setMenuTranslateX(-MENU_WIDTH);
-      if (typeof onComplete === 'function') {
-        onComplete();
-      }
-    });
-  }, [gestureActions, menuTranslateX, MENU_WIDTH]);
+        Animated.timing(menuTranslateX, { 
+            toValue: -MENU_WIDTH, 
+            duration: 300,
+            useNativeDriver: true
+        }).start(() => {
+            lastPosition.current = -MENU_WIDTH;
+            gestureActions.setMenuOpen(false);
+            gestureActions.setMenuTranslateX(-MENU_WIDTH);
+            if (typeof onComplete === 'function') {
+                onComplete();
+            }
+        });
+    }, [gestureActions, menuTranslateX, MENU_WIDTH]);
 
   const onGestureEvent = useCallback((event) => {
     const { translationX } = event.nativeEvent;
@@ -46,12 +56,28 @@ const useGestureManager = () => {
 
   const onHandlerStateChange = useCallback((event) => {
     const { state: gestureState, translationX, velocityX } = event.nativeEvent;
+    console.log('Handler state change:', {
+        state: gestureState,
+        translationX,
+        velocityX,
+        lastPosition: lastPosition.current
+    });
     if (gestureState === State.END) {
       const finalPosition = lastPosition.current + translationX;
       const projectedPosition = finalPosition + 0.2 * velocityX;
+
+      console.log('Gesture ended:', {
+            finalPosition,
+            projectedPosition,
+            threshold: -MENU_WIDTH / 2,
+            willOpenMenu: projectedPosition > -MENU_WIDTH / 2
+        });
+
       if (projectedPosition > -MENU_WIDTH / 2) {
+        console.log('Opening menu...');
         openMenu();
       } else {
+        console.log('Closing menu...');
         closeMenu();
       }
     }
