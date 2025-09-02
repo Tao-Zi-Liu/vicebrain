@@ -1,4 +1,4 @@
-// src/components/Menu.js - OPACITY ANIMATION VERSION
+// src/components/Menu.js - FINAL WORKING VERSION
 
 import React from 'react';
 import {
@@ -23,22 +23,29 @@ const MenuItem = ({ iconName, iconSet = 'MaterialCommunityIcons', text, onPress 
 };
 
 const Menu = ({ isVisible, onClose, onNavigate, onSearch, onSignOut, translateX }) => {
-  // Create a simple opacity animation based on isVisible
-  const [opacity] = React.useState(new Animated.Value(0));
-  
+  const [slideAnim] = React.useState(new Animated.Value(-MENU_WIDTH));
+  const [modalVisible, setModalVisible] = React.useState(false);
+
   React.useEffect(() => {
     if (isVisible) {
-      Animated.timing(opacity, {
-        toValue: 1,
+      // Opening: show modal immediately, then animate in
+      setModalVisible(true);
+      Animated.timing(slideAnim, {
+        toValue: 0,
         duration: 300,
         useNativeDriver: true
       }).start();
     } else {
-      Animated.timing(opacity, {
-        toValue: 0,
-        duration: 200,
+      // Closing: animate out first, then hide modal
+      Animated.timing(slideAnim, {
+        toValue: -MENU_WIDTH,
+        duration: 250,
         useNativeDriver: true
-      }).start();
+      }).start((finished) => {
+        if (finished) {
+          setModalVisible(false);
+        }
+      });
     }
   }, [isVisible]);
 
@@ -52,16 +59,14 @@ const Menu = ({ isVisible, onClose, onNavigate, onSearch, onSignOut, translateX 
     );
   };
 
-  if (!isVisible) return null;
-
   return (
-    <Modal transparent visible={isVisible} animationType="slide">
+    <Modal transparent visible={modalVisible} animationType="none">
       <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose}>
         <Animated.View 
           style={[
             styles.menuContainer,
             {
-              opacity: opacity
+              transform: [{ translateX: slideAnim }]
             }
           ]}
         >

@@ -64,6 +64,17 @@ const ListItem = ({
             const isHorizontal = Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 2;
             const hasMinMovement = Math.abs(gestureState.dx) > 10; // FIXED: Reduced from 20 to 10
             const isLeftSwipe = gestureState.dx < -10; // FIXED: Consistent with hasMinMovement
+
+            console.log('ListItem gesture check:', {
+                dx: gestureState.dx,
+                dy: gestureState.dy,
+                isHorizontal,
+                hasMinMovement,
+                isLeftSwipe,
+                isMenuVisible,
+                showActions,
+                shouldCapture: isHorizontal && hasMinMovement && isLeftSwipe && !isMenuVisible && !showActions
+            });
             
             return isHorizontal && hasMinMovement && isLeftSwipe && !isMenuVisible && !showActions;
         },
@@ -74,12 +85,13 @@ const ListItem = ({
             }).start();
         },
         onPanResponderMove: (evt, gestureState) => {
+            console.log('ListItem pan move:', gestureState.dx);
             if (gestureState.dx < 0) {
                 const clampedTranslation = Math.max(gestureState.dx, -80);
                 translateX.setValue(clampedTranslation);
                 
-                // FIXED: Show actions when swipe reaches 25px (consistent threshold)
                 if (Math.abs(gestureState.dx) > 15 && !showActions) {
+                    console.log('Showing actions for item:', item.id);
                     setShowActions(true);
                     handleNewSwipe();
                 }

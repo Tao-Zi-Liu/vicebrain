@@ -90,18 +90,11 @@ const MainView = ({
     return (
         <SafeAreaView style={styles.safeArea}>
             <PanGestureHandler
-                    onGestureEvent={(event) => {
-                        console.log('Gesture detected:', event.nativeEvent.translationX, event.nativeEvent.translationY);
-                        onGestureEvent(event);
-                    }}
-                    onHandlerStateChange={(event) => {
-                        console.log('Gesture state changed:', event.nativeEvent.state);
-                        onHandlerStateChange(event);
-                    }}
-                    activeOffsetX={[-999, 20]}
-                    failOffsetY={[-50, 50]}
-                    enabled={!gestureState.isMenuOpen}
-                >
+                onGestureEvent={onGestureEvent}
+                onHandlerStateChange={onHandlerStateChange}
+                activeOffsetX={[-999, 30]}
+                enabled={!gestureState.isMenuOpen}
+            >
                 <Animated.View style={{ flex: 1 }}>
                     <Animated.View style={{ flex: 1, backgroundColor: '#F8F9FA' }}>
                         <StatusBar barStyle="dark-content" />            
