@@ -1,15 +1,14 @@
-// src/screens/MainView.js - FIXED VERSION
+// src/screens/MainView.js - CLEAN FINAL VERSION
 
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, StatusBar, ActivityIndicator,
   TouchableOpacity, TextInput, Animated, Pressable
 } from 'react-native';
-import { FlatList, PanGestureHandler } from 'react-native-gesture-handler';
+import { FlatList } from 'react-native-gesture-handler';
 import ListItem from '../components/ListItem';
 import { useGestureContext } from '../context/GestureContext';
-import useGestureManager from '../hooks/useGestureManager';
-
+import { PanResponder } from 'react-native';
 
 const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -27,15 +26,39 @@ const MainView = ({
 }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [openSwipeableId, setOpenSwipeableId] = useState(null);
+    const [hasOpenActions, setHasOpenActions] = useState(false);
     const { gestureState } = useGestureContext();
-    const { onGestureEvent, onHandlerStateChange } = useGestureManager();
     
     const scrollY = useRef(new Animated.Value(0)).current;
     const flatListRef = useRef(null);
     const searchAnim = useRef(new Animated.Value(0)).current;
-    const panGestureRef = useRef(null);
     const addButtonScale = useRef(new Animated.Value(1)).current;
     const swipeableRefs = useRef({});
+
+    const rightSwipePanResponder = PanResponder.create({
+            onStartShouldSetPanResponder: () => false,
+            onMoveShouldSetPanResponder: (evt, gestureState) => {
+                // Only capture clear right swipes, ignore left swipes completely
+                const isRightSwipe = gestureState.dx > 25 && gestureState.dy > -30 && gestureState.dy < 30;
+                const isNotLeftSwipe = gestureState.dx > 0; // Never capture left swipes
+                return isRightSwipe && isNotLeftSwipe;
+            },
+            onPanResponderGrant: () => {
+                // Optional: Add a small delay to avoid capturing quick taps
+            },
+            onPanResponderMove: (evt, gestureState) => {
+                // Only continue if it's still a right swipe
+                if (gestureState.dx < 0) {
+                    return false; // Release control if user starts swiping left
+                }
+            },
+            onPanResponderRelease: (evt, gestureState) => {
+                // Only open menu for clear right swipes
+                if (gestureState.dx > 80 && gestureState.dx > 0) {
+                    onOpenMenu();
+                }
+            }
+        });
 
     useEffect(() => {
         const toValue = isSearchVisible ? 1 : 0;
@@ -56,6 +79,12 @@ const MainView = ({
         }
         swipeableRefs.current[id] = ref.current;
         setOpenSwipeableId(id);
+        setHasOpenActions(true);
+    };
+
+    const handleSwipeableClose = () => {
+        setOpenSwipeableId(null);
+        setHasOpenActions(false);
     };
 
     const handleScroll = Animated.event(
@@ -89,16 +118,14 @@ const MainView = ({
 
     return (
         <SafeAreaView style={styles.safeArea}>
-            <PanGestureHandler
-                onGestureEvent={onGestureEvent}
-                onHandlerStateChange={onHandlerStateChange}
-                activeOffsetX={[-999, 30]}
-                enabled={!gestureState.isMenuOpen}
-            >
-                <Animated.View style={{ flex: 1 }}>
-                    <Animated.View style={{ flex: 1, backgroundColor: '#F8F9FA' }}>
-                        <StatusBar barStyle="dark-content" />            
-                        <View style={styles.header}>
+            <Animated.View style={{ flex: 1 }}>
+                <Animated.View style={{ flex: 1, backgroundColor: '#F8F9FA' }}
+                >
+                    <StatusBar barStyle="dark-content" />            
+                    <View 
+                            style={styles.header}
+                            {...rightSwipePanResponder.panHandlers}
+                        >
                             <TouchableOpacity onPress={onOpenMenu} style={styles.menuButton}>
                                 <MenuIcon />
                             </TouchableOpacity>
@@ -109,52 +136,52 @@ const MainView = ({
                                 <FilterIcon />
                             </TouchableOpacity>
                         </View>
-                        
-                        <Animated.View style={[styles.searchBarContainer, { height: searchBarHeight }]}>
-                            <TextInput 
-                                style={styles.searchInput} 
-                                placeholder="Search Shinnings..." 
-                                value={searchQuery} 
-                                onChangeText={setSearchQuery} 
-                            />
-                            <TouchableOpacity onPress={onToggleSearch}>
-                                <Text>Cancel</Text>
-                            </TouchableOpacity>
-                        </Animated.View>
-                        
-                        {loading ? (
-                            <View style={styles.loadingContainer}>
-                                <ActivityIndicator size="large" color="#9CA3AF" />
-                            </View>
-                        ) : (
-                            <AnimatedFlatList
-                                ref={flatListRef}
-                                data={filteredShinnings}
-                                keyExtractor={(item) => item.id}
-                                onScroll={handleScroll}
-                                scrollEventThrottle={16}
-                                renderItem={({ item }) => (
-                                    <ListItem
-                                        item={item}
-                                        onSelectShinning={onSelectShinning}
-                                        onSetStatus={onSetStatus}
-                                        onDeletePermanently={onDeletePermanently}
-                                        onOpenEditModal={onOpenEditModal}
-                                        currentView={currentView}
-                                        onSwipeableOpen={handleSwipeableOpen}
-                                        isMenuVisible={gestureState.isMenuOpen}
-                                    />
-                                )}
-                                contentContainerStyle={{ 
-                                    paddingBottom: 120, 
-                                    flexGrow: 1 
-                                }}
-                            />
-                        )}
+                    
+                    <Animated.View style={[styles.searchBarContainer, { height: searchBarHeight }]}>
+                        <TextInput 
+                            style={styles.searchInput} 
+                            placeholder="Search Shinnings..." 
+                            value={searchQuery} 
+                            onChangeText={setSearchQuery} 
+                        />
+                        <TouchableOpacity onPress={onToggleSearch}>
+                            <Text>Cancel</Text>
+                        </TouchableOpacity>
                     </Animated.View>
+                    
+                    {loading ? (
+                        <View style={styles.loadingContainer}>
+                            <ActivityIndicator size="large" color="#9CA3AF" />
+                        </View>
+                    ) : (
+                        <AnimatedFlatList
+                            ref={flatListRef}
+                            data={filteredShinnings}
+                            keyExtractor={(item) => item.id}
+                            onScroll={handleScroll}
+                            scrollEventThrottle={16}
+                            renderItem={({ item }) => (
+                                <ListItem
+                                    item={item}
+                                    onSelectShinning={onSelectShinning}
+                                    onSetStatus={onSetStatus}
+                                    onDeletePermanently={onDeletePermanently}
+                                    onOpenEditModal={onOpenEditModal}
+                                    currentView={currentView}
+                                    onSwipeableOpen={handleSwipeableOpen}
+                                    onSwipeableClose={handleSwipeableClose}
+                                    isMenuVisible={gestureState.isMenuOpen}
+                                />
+                            )}
+                            contentContainerStyle={{ 
+                                paddingBottom: 120, 
+                                flexGrow: 1 
+                            }}
+                        />
+                    )}
                 </Animated.View>
-            </PanGestureHandler>
-            
+            </Animated.View>
+        
             <AnimatedPressable
                 onPress={onOpenAddModal}
                 onPressIn={onPressInAdd}
@@ -166,6 +193,7 @@ const MainView = ({
             >
                 <AddIcon />
             </AnimatedPressable>
+
         </SafeAreaView>
     );
 };

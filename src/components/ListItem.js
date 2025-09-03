@@ -29,7 +29,7 @@ const RestoreIcon = () => (<Text style={styles.iconTextSm}>♻️</Text>);
 
 const ListItem = ({
     item, onSelectShinning, onSetStatus, onDeletePermanently, onOpenEditModal,
-    currentView, isMenuVisible, onSwipeableOpen
+    currentView, isMenuVisible, onSwipeableOpen,onSwipeableClose 
 }) => {
     const { gestureState } = useGestureContext();
     const swipeableRef = useRef(null);
@@ -50,6 +50,10 @@ const ListItem = ({
             toValue: 0,
             useNativeDriver: true,
         }).start();
+
+        if (onSwipeableClose && typeof onSwipeableClose === 'function') {
+            onSwipeableClose();
+        }
     };
 
     const handleNewSwipe = () => {
@@ -98,33 +102,49 @@ const ListItem = ({
             }
         },
         onPanResponderRelease: (evt, gestureState) => {
-                Animated.spring(scaleAnim, { 
-                    toValue: 1, 
-                    useNativeDriver: true 
-                }).start();
+            Animated.spring(scaleAnim, { 
+                toValue: 1, 
+                useNativeDriver: true 
+            }).start();
+            
+            if (gestureState.dx < 0) {
+                const swipeDistance = Math.abs(gestureState.dx);
+                const swipeVelocity = Math.abs(gestureState.vx);
+                const currentTranslation = Math.abs(translateX._value);
                 
-                if (gestureState.dx < 0) {
-                    // FIXED: More forgiving logic for fast swipes
-                    const swipeDistance = Math.abs(gestureState.dx);
-                    const swipeVelocity = Math.abs(gestureState.vx);
-                    
-                    // Keep actions if: distance > 30px OR (distance > 20px AND fast swipe)
-                    const shouldKeepActions = swipeDistance > 20 || (swipeDistance > 215 && swipeVelocity > 0.8);
-                    
-                    if (shouldKeepActions) {
-                        setShowActions(true);
-                        handleNewSwipe();
-                        Animated.spring(translateX, {
-                            toValue: -80,
-                            useNativeDriver: true,
-                        }).start();
-                    } else {
-                        closeActions();
-                    }
+                // More forgiving logic: keep actions if user clearly intended to open them
+                const significantSwipe = swipeDistance > 30;
+                const fastSwipe = swipeVelocity > 0.6 && swipeDistance > 20;
+                const alreadyMostlyOpen = currentTranslation > 40;
+                
+                const shouldKeepActions = significantSwipe || fastSwipe || alreadyMostlyOpen;
+                
+                console.log('Release decision:', {
+                    swipeDistance,
+                    swipeVelocity,
+                    currentTranslation,
+                    shouldKeepActions,
+                    significantSwipe,
+                    fastSwipe,
+                    alreadyMostlyOpen
+                });
+                
+                if (shouldKeepActions) {
+                    setShowActions(true);
+                    handleNewSwipe();
+                    Animated.spring(translateX, {
+                        toValue: -80,
+                        useNativeDriver: true,
+                        tension: 100,
+                        friction: 8
+                    }).start();
                 } else {
                     closeActions();
                 }
-            },
+            } else {
+                closeActions();
+            }
+        },
         onPanResponderTerminate: () => {
             Animated.spring(scaleAnim, { 
                 toValue: 1, 
