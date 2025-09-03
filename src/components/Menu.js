@@ -1,4 +1,4 @@
-// src/components/Menu.js - FINAL WORKING VERSION
+// src/components/Menu.js - FIXED BACKGROUND VERSION
 
 import React from 'react';
 import {
@@ -23,32 +23,6 @@ const MenuItem = ({ iconName, iconSet = 'MaterialCommunityIcons', text, onPress 
 };
 
 const Menu = ({ isVisible, onClose, onNavigate, onSearch, onSignOut, translateX }) => {
-  const [slideAnim] = React.useState(new Animated.Value(-MENU_WIDTH));
-  const [modalVisible, setModalVisible] = React.useState(false);
-
-  React.useEffect(() => {
-    if (isVisible) {
-      // Opening: show modal immediately, then animate in
-      setModalVisible(true);
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true
-      }).start();
-    } else {
-      // Closing: animate out first, then hide modal
-      Animated.timing(slideAnim, {
-        toValue: -MENU_WIDTH,
-        duration: 250,
-        useNativeDriver: true
-      }).start((finished) => {
-        if (finished) {
-          setModalVisible(false);
-        }
-      });
-    }
-  }, [isVisible]);
-
   const handleSignOutWithAlert = () => {
     onClose();
     Alert.alert( "Sign Out", "Are you sure you want to sign out?",
@@ -59,17 +33,12 @@ const Menu = ({ isVisible, onClose, onNavigate, onSearch, onSignOut, translateX 
     );
   };
 
+  if (!isVisible) return null;
+
   return (
-    <Modal transparent visible={modalVisible} animationType="none">
-      <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose}>
-        <Animated.View 
-          style={[
-            styles.menuContainer,
-            {
-              transform: [{ translateX: slideAnim }]
-            }
-          ]}
-        >
+    <Modal transparent visible={isVisible} animationType="none">
+      <View style={styles.overlay}>
+        <View style={styles.menuContainer}>
           <SafeAreaView style={{ flex: 1, justifyContent: 'space-between' }}>
             <View>
               <View style={styles.menuHeader}>
@@ -88,8 +57,22 @@ const Menu = ({ isVisible, onClose, onNavigate, onSearch, onSignOut, translateX 
               <MenuItem iconName="sign-out-alt" iconSet="FontAwesome5" text="Sign Out" onPress={handleSignOutWithAlert} />
             </View>
           </SafeAreaView>
-        </Animated.View>
-      </TouchableOpacity>
+        </View>
+        
+        {/* Invisible overlay to catch taps outside menu - positioned to the right */}
+        <TouchableOpacity 
+          style={{
+            position: 'absolute',
+            left: MENU_WIDTH,
+            top: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'transparent'
+          }}
+          onPress={onClose}
+          activeOpacity={1}
+        />
+      </View>
     </Modal>
   );
 };
@@ -97,31 +80,44 @@ const Menu = ({ isVisible, onClose, onNavigate, onSearch, onSignOut, translateX 
 const styles = StyleSheet.create({
   overlay: { 
     flex: 1, 
-    backgroundColor: 'rgba(0,0,0,0.4)'
+    backgroundColor: 'transparent',
+    flexDirection: 'row'
   },
   menuContainer: { 
-    position: 'absolute',
-    left: 0,
-    top: 0,
     width: MENU_WIDTH, 
     height: '100%', 
-    backgroundColor: '#F8F9FA'
+    backgroundColor: '#FFFFFF',  // Changed to pure white
+    borderRightWidth: 1,         // Add right border
+    borderRightColor: '#E1E5E9', // Light border color
+    elevation: 8,                // Add shadow on Android
+    shadowColor: '#000000',      // Add shadow on iOS
+    shadowOffset: {
+      width: 2,
+      height: 0,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
   },
   menuHeader: { 
-    paddingHorizontal: 20, 
-    paddingVertical: 30, 
+    paddingHorizontal: 16,
+    paddingVertical: 12, 
     borderBottomWidth: 1, 
-    borderBottomColor: '#E9ECEF' 
+    borderBottomColor: '#E9ECEF',
+    backgroundColor: '#FFFFFF', 
+    minHeight: 60 
   },
   menuTitle: { 
     fontSize: 24, 
-    fontWeight: 'bold' 
+    fontWeight: 'bold',
+    color: '#212529'             // Ensure good contrast
   },
   menuItem: { 
     flexDirection: 'row', 
     alignItems: 'center', 
     paddingVertical: 15, 
-    paddingHorizontal: 20 
+    paddingHorizontal: 20,
+    borderBottomWidth: 0.5,      // Add subtle separators
+    borderBottomColor: '#F1F3F5'
   },
   menuIcon: { 
     marginRight: 20, 
