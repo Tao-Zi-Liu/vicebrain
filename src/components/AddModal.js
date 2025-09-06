@@ -8,8 +8,34 @@ import {
 } from 'react-native';
 import { useAppContext } from '../context/AppContext';
 import firebaseService from '../services/firebaseService';
+import { GestureDetector, Gesture } from 'react-native-gesture-handler';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring, runOnJS } from 'react-native-reanimated';
 
 const AddModal = ({ visible, onClose, shinningToEdit }) => {
+  const translateY = useSharedValue(0);
+
+  const dismissGesture = Gesture.Pan()
+        .activeOffsetY([10, 999])  // Only down swipes
+        .onUpdate((event) => {
+            'worklet';
+            if (event.translationY > 0) {
+                translateY.value = event.translationY;
+            }
+        })
+        .onEnd((event) => {
+            'worklet';
+            if (event.translationY > 150) {
+                // Dismiss modal
+                runOnJS(onClose)();
+            } else {
+                // Snap back
+                translateY.value = withSpring(0);
+            }
+        });
+  
+  const animatedStyle = useAnimatedStyle(() => ({
+        transform: [{ translateY: translateY.value }]
+    }));
   const { state, actions } = useAppContext();
   const { user } = state;
 
@@ -79,6 +105,8 @@ const AddModal = ({ visible, onClose, shinningToEdit }) => {
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      <GestureDetector gesture={dismissGesture}>
+          <Animated.View style={[{ flex: 1 }, animatedStyle]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.container}
@@ -107,6 +135,8 @@ const AddModal = ({ visible, onClose, shinningToEdit }) => {
           </TouchableWithoutFeedback>
         </SafeAreaView>
       </KeyboardAvoidingView>
+      </Animated.View>
+    </GestureDetector>
     </Modal>
   );
 };

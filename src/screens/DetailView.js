@@ -1,13 +1,14 @@
-import React, { memo, useCallback } from 'react';
+import React, { memo, useCallback, useState } from 'react';
 import {
     View, Text, StyleSheet, SafeAreaView, StatusBar, ActivityIndicator,
-    TouchableOpacity, ScrollView
+    TouchableOpacity, ScrollView, Linking
 } from 'react-native';
 import { FlingGestureHandler, Directions } from 'react-native-gesture-handler';
 import { useGestureContext } from '../context/GestureContext';
 import useGestureManager from '../hooks/useGestureManager';
+import { GestureDetector, Gesture } from 'react-native-gesture-handler';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring, runOnJS } from 'react-native-reanimated';
 
-// Helper functions and components moved outside to prevent re-creation on every render.
 const formatFullDate = (timestamp) => {
     if (!timestamp) return 'N/A';
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
@@ -15,7 +16,7 @@ const formatFullDate = (timestamp) => {
 };
 
 const BackIcon = memo(() => <Text style={styles.iconText}>‹</Text>);
-const AiIcon = memo(() => <Text style={styles.iconText}>✨</Text>);
+const AiIcon = memo(() => <Text style={styles.iconText}>✨</Text>)
 
 const AiSection = memo(({ type, results, onOpenLink }) => {
     if (!results || results.length === 0) return null;
@@ -55,14 +56,55 @@ const AiSection = memo(({ type, results, onOpenLink }) => {
     );
 });
 
-const DetailView = ({
-    shinning, onBack, onOpenAiMenu, isAILoading, aiError, linkedData,
-    onSelectLinkedItem, onOpenLink, isMenuVisible
-}) => {
+const DetailView = ({ shinning, onBack, onSelectLinkedItem, linkedData }) => {
+    const [isAILoading, setIsAILoading] = useState(false);
+    const [aiError, setAiError] = useState(null);
+    const [isMenuVisible, setIsMenuVisible] = useState(false);
+    const translateX = useSharedValue(0);
+
+        const onOpenAiMenu = useCallback(() => {
+        console.log('AI menu clicked');
+        // TODO: Implement AI features later
+    }, []);
+
+    const onOpenLink = useCallback(async (url) => {
+        if (!url) return;
+        try {
+            const supported = await Linking.canOpenURL(url);
+            if (supported) {
+                await Linking.openURL(url);
+            } else {
+                console.log("Cannot open URL:", url);
+            }
+        } catch (error) {
+            console.error('Failed to open URL:', error);
+        }
+    }, []);
+
+    const backGesture = Gesture.Pan()
+        .activeOffsetX([10, 999]) 
+        .failOffsetY([-10, 10])
+        .onUpdate((event) => {
+            'worklet';
+            if (event.absoluteX - event.translationX < 30) {
+                translateX.value = Math.max(0, event.translationX);
+            }
+        })
+        .onEnd((event) => {
+            'worklet';
+            if (event.translationX > 100) {
+                runOnJS(onBack)();
+            } else {
+                translateX.value = withSpring(0);
+            }
+        });
+    const animatedStyle = useAnimatedStyle(() => ({
+        transform: [{ translateX: translateX.value }]
+        }));
     const { gestureState } = useGestureContext();
     const { createBackGestureHandler } = useGestureManager();
     const backGestureHandler = createBackGestureHandler(onBack);
-
+    
     const renderAiSections = useCallback(() => {
         if (!shinning.aiResults) return null;
         return Object.entries(shinning.aiResults).map(([type, results]) => (
@@ -71,62 +113,66 @@ const DetailView = ({
     }, [shinning.aiResults, onOpenLink]);
 
     return (
-        <FlingGestureHandler
-            direction={Directions.RIGHT}
-            enabled={!gestureState.isMenuOpen}
-            onHandlerStateChange={backGestureHandler.onHandlerStateChange}
-        >
-            <SafeAreaView style={styles.safeArea}>
-                <StatusBar barStyle="dark-content" />
-                <View style={styles.header}>
-                    <TouchableOpacity onPress={onBack} style={styles.menuButton}><BackIcon /></TouchableOpacity>
-                    <Text style={styles.headerTitle} numberOfLines={1}>{shinning.title}</Text>
-                    <TouchableOpacity onPress={onOpenAiMenu} style={styles.menuButton}><AiIcon /></TouchableOpacity>
-                </View>
-                <ScrollView scrollEnabled={!isMenuVisible} contentContainerStyle={styles.detailContainer}>
-                    <Text style={styles.detailContent}>{shinning.content}</Text>
-                    <View style={styles.tagsContainer}>
-                        {shinning.tags?.map(tag => <View key={tag} style={styles.tag}><Text style={styles.tagText}>{tag}</Text></View>)}
-                    </View>
-                    <View style={styles.timestampContainer}>
-                        <Text style={styles.timestampText}>Created: {formatFullDate(shinning.createdAt)}</Text>
-                        <Text style={styles.timestampText}>Updated: {formatFullDate(shinning.updatedAt)}</Text>
-                    </View>
+            <GestureDetector gesture={backGesture}>
+                <Animated.View style={[{ flex: 1 }, animatedStyle]}>
+                    <FlingGestureHandler
+                        direction={Directions.RIGHT}
+                        enabled={!gestureState.isMenuOpen}
+                        onHandlerStateChange={backGestureHandler.onHandlerStateChange}
+                    >
+                        <SafeAreaView style={styles.safeArea}>
+                            <StatusBar barStyle="dark-content" />
+                            <View style={styles.header}>
+                                <TouchableOpacity onPress={onBack} style={styles.menuButton}><BackIcon /></TouchableOpacity>
+                                <Text style={styles.headerTitle} numberOfLines={1}>{shinning.title}</Text>
+                                <TouchableOpacity onPress={onOpenAiMenu} style={styles.menuButton}><AiIcon /></TouchableOpacity>
+                            </View>
+                            <ScrollView scrollEnabled={!isMenuVisible} contentContainerStyle={styles.detailContainer}>
+                                <Text style={styles.detailContent}>{shinning.content}</Text>
+                                <View style={styles.tagsContainer}>
+                                    {shinning.tags?.map(tag => <View key={tag} style={styles.tag}><Text style={styles.tagText}>{tag}</Text></View>)}
+                                </View>
+                                <View style={styles.timestampContainer}>
+                                    <Text style={styles.timestampText}>Created: {formatFullDate(shinning.createdAt)}</Text>
+                                    <Text style={styles.timestampText}>Updated: {formatFullDate(shinning.updatedAt)}</Text>
+                                </View>
 
-                    {isAILoading && <ActivityIndicator style={{ marginVertical: 20 }} />}
-                    {aiError && <Text style={[styles.errorText, { marginTop: 20 }]}>{aiError}</Text>}
+                                {isAILoading && <ActivityIndicator style={{ marginVertical: 20 }} />}
+                                {aiError && <Text style={[styles.errorText, { marginTop: 20 }]}>{aiError}</Text>}
 
-                    {renderAiSections()}
+                                {renderAiSections()}
 
-                    <View style={styles.knowledgeGraphContainer}>
-                        <Text style={styles.aiHeader}>Backlinks</Text>
-                        {linkedData.backlinks.length > 0 ? (
-                            linkedData.backlinks.map(link => (
-                                <TouchableOpacity key={link.id} onPress={() => onSelectLinkedItem(link)}>
-                                    <Text style={styles.linkItem}>- {link.title}</Text>
-                                </TouchableOpacity>
-                            ))
-                        ) : (
-                            <Text style={styles.emptyText}>No backlinks yet.</Text>
-                        )}
-                    </View>
-                    <View style={styles.knowledgeGraphContainer}>
-                        <Text style={styles.aiHeader}>Outgoing Links</Text>
-                        {linkedData.outgoingLinks.length > 0 ? (
-                            linkedData.outgoingLinks.map(link => (
-                                <TouchableOpacity key={link.id} onPress={() => onSelectLinkedItem(link)}>
-                                    <Text style={styles.linkItem}>- {link.title}</Text>
-                                </TouchableOpacity>
-                            ))
-                        ) : (
-                            <Text style={styles.emptyText}>No outgoing links yet.</Text>
-                        )}
-                    </View>
-                </ScrollView>
-            </SafeAreaView>
-        </FlingGestureHandler>
-    );
-};
+                                <View style={styles.knowledgeGraphContainer}>
+                                    <Text style={styles.aiHeader}>Backlinks</Text>
+                                    {linkedData.backlinks.length > 0 ? (
+                                        linkedData.backlinks.map(link => (
+                                            <TouchableOpacity key={link.id} onPress={() => onSelectLinkedItem(link)}>
+                                                <Text style={styles.linkItem}>- {link.title}</Text>
+                                            </TouchableOpacity>
+                                        ))
+                                    ) : (
+                                        <Text style={styles.emptyText}>No backlinks yet.</Text>
+                                    )}
+                                </View>
+                                <View style={styles.knowledgeGraphContainer}>
+                                    <Text style={styles.aiHeader}>Outgoing Links</Text>
+                                    {linkedData.outgoingLinks.length > 0 ? (
+                                        linkedData.outgoingLinks.map(link => (
+                                            <TouchableOpacity key={link.id} onPress={() => onSelectLinkedItem(link)}>
+                                                <Text style={styles.linkItem}>- {link.title}</Text>
+                                            </TouchableOpacity>
+                                        ))
+                                    ) : (
+                                        <Text style={styles.emptyText}>No outgoing links yet.</Text>
+                                    )}
+                                </View>
+                            </ScrollView>
+                        </SafeAreaView>
+                    </FlingGestureHandler>
+                </Animated.View>
+            </GestureDetector>
+        );
+        };
 
 const styles = StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: '#F8F9FA' },

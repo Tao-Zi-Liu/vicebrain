@@ -1,0 +1,72 @@
+import { useCallback } from 'react';
+import { Dimensions } from 'react-native';
+import {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  runOnJS
+} from 'react-native-reanimated';
+import { Gesture } from 'react-native-gesture-handler';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const MENU_WIDTH = SCREEN_WIDTH * 0.75;
+
+export const useMenuGesture = (onMenuStateChange) => {
+  const translateX = useSharedValue(0);
+  const startX = useSharedValue(0);
+  
+  const openMenu = useCallback(() => {
+    translateX.value = withSpring(MENU_WIDTH);
+    if (onMenuStateChange) onMenuStateChange(true);
+  }, []);
+
+  const closeMenu = useCallback(() => {
+    translateX.value = withSpring(0);
+    if (onMenuStateChange) onMenuStateChange(false);
+  }, []);
+
+  const panGesture = Gesture.Pan()
+    .shouldCancelWhenOutside(false)
+    .minDistance(5)  
+    .onStart((event) => {
+      'worklet';
+      startX.value = translateX.value;
+    })
+    .onUpdate((event) => {
+      'worklet';
+      const isFromEdge = event.absoluteX < 50 && startX.value === 0;
+      const isMenuOpen = startX.value > 0;
+      
+      if (isFromEdge && event.translationX > 0) {
+        translateX.value = Math.min(event.translationX, MENU_WIDTH);
+      } else if (isMenuOpen) {
+        translateX.value = Math.max(0, Math.min(MENU_WIDTH, startX.value + event.translationX));
+      }
+    })
+    .onEnd(() => {
+      'worklet';
+      const shouldOpen = translateX.value > MENU_WIDTH / 2;
+      
+      if (shouldOpen) {
+        translateX.value = withSpring(MENU_WIDTH);
+        runOnJS(onMenuStateChange)(true);
+      } else {
+        translateX.value = withSpring(0);
+        runOnJS(onMenuStateChange)(false);
+      }
+    });
+
+  const contentStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ translateX: translateX.value }]
+    };
+  });
+
+  return {
+    panGesture,
+    contentStyle,
+    openMenu,
+    closeMenu,
+    translateX
+  };
+};

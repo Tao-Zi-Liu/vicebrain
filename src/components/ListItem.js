@@ -1,10 +1,15 @@
-// src/components/ListItem.js - FIXED THRESHOLDS VERSION
-
 import React, { useRef, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, Animated, TouchableOpacity, PanResponder } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TouchableOpacity } from 'react-native';
+import { GestureDetector, Gesture } from 'react-native-gesture-handler';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  runOnJS
+} from 'react-native-reanimated';
 import { useGestureContext } from '../context/GestureContext';
 
-// Helper functions and Icon components
+// Helper functions
 const timeAgo = (timestamp) => {
     if (!timestamp) return 'Just now';
     const now = new Date();
@@ -29,130 +34,104 @@ const RestoreIcon = () => (<Text style={styles.iconTextSm}>♻️</Text>);
 
 const ListItem = ({
     item, onSelectShinning, onSetStatus, onDeletePermanently, onOpenEditModal,
-    currentView, isMenuVisible, onSwipeableOpen,onSwipeableClose 
+    currentView, isMenuVisible, onSwipeableOpen, onSwipeableClose 
 }) => {
-    const { gestureState } = useGestureContext();
-    const swipeableRef = useRef(null);
-    const scaleAnim = useRef(new Animated.Value(1)).current;
-    const translateX = useRef(new Animated.Value(0)).current;
+    const translateX = useSharedValue(0);
+    const scaleValue = useSharedValue(1);
     const [showActions, setShowActions] = useState(false);
-
-    useEffect(() => {
-    // Close item actions when main menu is opened
-        if (isMenuVisible && showActions) {
-            closeActions();
+    const swipeableRef = useRef({
+        close: () => {
+            translateX.value = withSpring(0);
+            setShowActions(false);
         }
-    }, [isMenuVisible]);
+    });
+    useEffect(() => {
+        if (isMenuVisible && onSwipeableOpen) {
+            onSwipeableOpen(item.id, swipeableRef.current);
+        }
+    }, [showActions]);
 
     const closeActions = () => {
         setShowActions(false);
-        Animated.spring(translateX, {
-            toValue: 0,
-            useNativeDriver: true,
-        }).start();
-
-        if (onSwipeableClose && typeof onSwipeableClose === 'function') {
+        translateX.value = withSpring(0);
+        if (onSwipeableClose) {
             onSwipeableClose();
         }
     };
 
     const handleNewSwipe = () => {
         if (onSwipeableOpen) {
-            onSwipeableOpen(item.id, { current: { close: closeActions } });
+            onSwipeableOpen(item.id, swipeableRef);
         }
     };
 
-    const panResponder = PanResponder.create({
-        onStartShouldSetPanResponder: () => false,
-        onMoveShouldSetPanResponder: (evt, gestureState) => {
-            const isHorizontal = Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 2;
-            const hasMinMovement = Math.abs(gestureState.dx) > 10; // FIXED: Reduced from 20 to 10
-            const isLeftSwipe = gestureState.dx < -10; // FIXED: Consistent with hasMinMovement
-
-            console.log('ListItem gesture check:', {
-                dx: gestureState.dx,
-                dy: gestureState.dy,
-                isHorizontal,
-                hasMinMovement,
-                isLeftSwipe,
-                isMenuVisible,
-                showActions,
-                shouldCapture: isHorizontal && hasMinMovement && isLeftSwipe && !isMenuVisible && !showActions
-            });
-            
-            return isHorizontal && hasMinMovement && isLeftSwipe && !isMenuVisible && !showActions;
-        },
-        onPanResponderGrant: () => {
-            Animated.spring(scaleAnim, { 
-                toValue: 1.02, 
-                useNativeDriver: true 
-            }).start();
-        },
-        onPanResponderMove: (evt, gestureState) => {
-            console.log('ListItem pan move:', gestureState.dx);
-            if (gestureState.dx < 0) {
-                const clampedTranslation = Math.max(gestureState.dx, -80);
-                translateX.setValue(clampedTranslation);
+    const swipeGesture = Gesture.Pan()
+    .activeOffsetX([-10, 999])
+    .failOffsetY([-10, 10])
+    .shouldCancelWhenOutside(false)
+    .onStart((event) => {
+        'worklet';
+        scaleValue.value = withSpring(1.02);
+    })
+    .onUpdate((event) => {
+        'worklet';
+        if (!isMenuVisible) {
+            if (event.translationX < 0 && !showActions) {
+                // Left swipe to open - existing logic unchanged
+                translateX.value = Math.max(event.translationX, -80);
                 
-                if (Math.abs(gestureState.dx) > 15 && !showActions) {
-                    console.log('Showing actions for item:', item.id);
-                    setShowActions(true);
-                    handleNewSwipe();
+                if (event.translationX < -15) {
+                    runOnJS(setShowActions)(true);
+                    runOnJS(handleNewSwipe)();
+                }
+            } else if (event.translationX < 0 && showActions) {
+                // Continue dragging left when already open
+                translateX.value = Math.max(-80 + event.translationX, -80);
+            } else if (event.translationX > 0 && showActions && event.absoluteX > 60) {
+                // Right swipe to close - only if NOT starting from left edge
+                // absoluteX > 60 ensures we're not interfering with menu gesture
+                translateX.value = Math.min(0, -80 + event.translationX);
+                
+                if (event.translationX > 15) {
+                    runOnJS(setShowActions)(false);
                 }
             }
-        },
-        onPanResponderRelease: (evt, gestureState) => {
-            Animated.spring(scaleAnim, { 
-                toValue: 1, 
-                useNativeDriver: true 
-            }).start();
-            
-            if (gestureState.dx < 0) {
-                const swipeDistance = Math.abs(gestureState.dx);
-                const swipeVelocity = Math.abs(gestureState.vx);
-                const currentTranslation = Math.abs(translateX._value);
-                
-                // More forgiving logic: keep actions if user clearly intended to open them
-                const significantSwipe = swipeDistance > 30;
-                const fastSwipe = swipeVelocity > 0.6 && swipeDistance > 20;
-                const alreadyMostlyOpen = currentTranslation > 40;
-                
-                const shouldKeepActions = significantSwipe || fastSwipe || alreadyMostlyOpen;
-                
-                console.log('Release decision:', {
-                    swipeDistance,
-                    swipeVelocity,
-                    currentTranslation,
-                    shouldKeepActions,
-                    significantSwipe,
-                    fastSwipe,
-                    alreadyMostlyOpen
-                });
-                
-                if (shouldKeepActions) {
-                    setShowActions(true);
-                    handleNewSwipe();
-                    Animated.spring(translateX, {
-                        toValue: -80,
-                        useNativeDriver: true,
-                        tension: 100,
-                        friction: 8
-                    }).start();
-                } else {
-                    closeActions();
-                }
+        }
+    })
+    .onEnd((event) => {
+        'worklet';
+        scaleValue.value = withSpring(1);
+        
+        if (showActions) {
+            // Actions are open
+            if (event.translationX > 20 && event.absoluteX > 60) {
+                // Swiped right enough to close (not from edge)
+                translateX.value = withSpring(0);
+                runOnJS(setShowActions)(false);
+                runOnJS(onSwipeableClose)();
             } else {
-                closeActions();
+                // Not enough swipe or from edge - keep open
+                translateX.value = withSpring(-80);
             }
-        },
-        onPanResponderTerminate: () => {
-            Animated.spring(scaleAnim, { 
-                toValue: 1, 
-                useNativeDriver: true 
-            }).start();
-            closeActions();
-        },
+        } else {
+            // Actions are closed
+            if (event.translationX < -30) {
+                // Swiped left enough to open
+                translateX.value = withSpring(-80);
+                runOnJS(setShowActions)(true);
+            } else {
+                // Not enough swipe - keep closed
+                translateX.value = withSpring(0);
+            }
+        }
     });
+
+    const animatedStyle = useAnimatedStyle(() => ({
+        transform: [
+            { translateX: translateX.value },
+            { scale: scaleValue.value }
+        ]
+    }));
 
     const getActions = () => {
         if (currentView === 'home') {
@@ -233,35 +212,36 @@ const ListItem = ({
 
     return (
         <View style={styles.container}>
-            <Animated.View 
-                style={[
-                    { transform: [{ scale: scaleAnim }, { translateX }] }, 
-                    styles.cardShadow
-                ]}
-                {...panResponder.panHandlers}
-            >
-                <Pressable 
-                    onPress={() => !showActions && onSelectShinning(item)}
-                    disabled={showActions}
-                >
-                    <View style={styles.card}>
-                        <Text style={styles.cardTitle}>{item.title}</Text>
-                        <Text style={styles.cardContent} numberOfLines={2}>
-                            {item.content}
-                        </Text>
-                        <View style={styles.tagsContainer}>
-                            {item.tags?.map(tag => (
-                                <View key={tag} style={styles.tag}>
-                                    <Text style={styles.tagText}>{tag}</Text>
-                                </View>
-                            ))}
+            <GestureDetector gesture={swipeGesture}>
+                <Animated.View style={[styles.cardShadow, animatedStyle]}>
+                    <Pressable 
+                        onPress={() => {
+                            if (showActions) {
+                                closeActions();
+                            } else {
+                                onSelectShinning(item);
+                            }
+                        }}
+                    >
+                        <View style={styles.card}>
+                            <Text style={styles.cardTitle}>{item.title}</Text>
+                            <Text style={styles.cardContent} numberOfLines={2}>
+                                {item.content}
+                            </Text>
+                            <View style={styles.tagsContainer}>
+                                {item.tags?.map(tag => (
+                                    <View key={tag} style={styles.tag}>
+                                        <Text style={styles.tagText}>{tag}</Text>
+                                    </View>
+                                ))}
+                            </View>
+                            <Text style={styles.timestampText}>
+                                Updated {timeAgo(item.updatedAt)}
+                            </Text>
                         </View>
-                        <Text style={styles.timestampText}>
-                            Updated {timeAgo(item.updatedAt)}
-                        </Text>
-                    </View>
-                </Pressable>
-            </Animated.View>
+                    </Pressable>
+                </Animated.View>
+            </GestureDetector>
 
             {/* Action buttons */}
             {showActions && (
@@ -318,6 +298,7 @@ const ListItem = ({
 const styles = StyleSheet.create({
     container: {
         position: 'relative',
+        zIndex: 1,
     },
     card: { 
         backgroundColor: 'white', 
@@ -345,7 +326,7 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.23,
         shadowRadius: 2.62,
         elevation: 4,
-        zIndex: 1,
+        zIndex: 2,
     },
     tagsContainer: { 
         flexDirection: 'row', 
@@ -375,14 +356,14 @@ const styles = StyleSheet.create({
     },
     actionButtonsTriangle: {
         position: 'absolute',
-        right: 16,
+        right: 10,
         top: 0,
-        bottom: 16,
+        bottom: 0,
         flexDirection: 'column',
         justifyContent: 'center',
         alignItems: 'center',
-        zIndex: 0,
-        width: 80,
+        zIndex: 1,
+        width: 70,
     },
     bottomRow: {
         flexDirection: 'row',
@@ -395,7 +376,7 @@ const styles = StyleSheet.create({
         bottom: 16,
         flexDirection: 'row',
         alignItems: 'center',
-        zIndex: 0,
+        zIndex: 1,
     },
     actionButton: {
         justifyContent: 'center',
@@ -411,7 +392,7 @@ const styles = StyleSheet.create({
         left: 0,
         right: 0,
         bottom: 0,
-        zIndex: 2,
+        zIndex: 0,
     },
 });
 

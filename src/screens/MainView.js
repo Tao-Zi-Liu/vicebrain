@@ -1,19 +1,20 @@
-// src/screens/MainView.js - REAL-TIME GESTURE VERSION
-
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, StatusBar, ActivityIndicator,
-  TouchableOpacity, TextInput, Animated, Pressable, Dimensions
+  TouchableOpacity, TextInput, Pressable, Dimensions, RefreshControl,
+  Animated as RNAnimated
 } from 'react-native';
 import { FlatList } from 'react-native-gesture-handler';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring
+} from 'react-native-reanimated';
 import ListItem from '../components/ListItem';
-import { useGestureContext } from '../context/GestureContext';
-import { PanResponder } from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 
 const { width } = Dimensions.get('window');
-const MENU_WIDTH = width * 0.75;
 
-const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 const MenuIcon = () => (<Text style={styles.iconText}>☰</Text>);
@@ -30,82 +31,37 @@ const MainView = ({
     const [searchQuery, setSearchQuery] = useState('');
     const [openSwipeableId, setOpenSwipeableId] = useState(null);
     const [hasOpenActions, setHasOpenActions] = useState(false);
-    const [shouldShowMenu, setShouldShowMenu] = useState(false);  // ADD THIS LINE
-    const { gestureState } = useGestureContext();
+    const [refreshing, setRefreshing] = useState(false);
     
-    const scrollY = useRef(new Animated.Value(0)).current;
     const flatListRef = useRef(null);
-    const searchAnim = useRef(new Animated.Value(0)).current;
-    const addButtonScale = useRef(new Animated.Value(1)).current;
+    const searchAnim = useRef(new RNAnimated.Value(0)).current;
+    const addButtonScale = useSharedValue(1);
     const swipeableRefs = useRef({});
-    const contentTranslateX = useRef(new Animated.Value(0)).current;
 
-    const rightSwipePanResponder = PanResponder.create({
-        onStartShouldSetPanResponder: () => false,
-        onMoveShouldSetPanResponder: (evt, gestureState) => {
-            const isRightSwipe = gestureState.dx > 15 && Math.abs(gestureState.dy) < 50;
-            return isRightSwipe && !gestureState.isMenuOpen;
-        },
-        onPanResponderMove: (evt, gestureState) => {
-            // Real-time following: move content as user drags
-            if (gestureState.dx > 0 && gestureState.dx <= MENU_WIDTH) {
-                contentTranslateX.setValue(gestureState.dx);
-                
-                // Show menu when dragged 20% of menu width
-                if (gestureState.dx > MENU_WIDTH * 0.2 && !shouldShowMenu) {
-                    setShouldShowMenu(true);
-                }
-            }
-        },
-        onPanResponderRelease: (evt, gestureState) => {
-            if (gestureState.dx > MENU_WIDTH * 0.3) {
-                // Complete the opening animation
-                onOpenMenu();
-                Animated.timing(contentTranslateX, {
-                    toValue: MENU_WIDTH,
-                    duration: 200,
-                    useNativeDriver: true
-                }).start();
-            } else {
-                // Snap back to closed
-                setShouldShowMenu(false);
-                Animated.timing(contentTranslateX, {
-                    toValue: 0,
-                    duration: 200,
-                    useNativeDriver: true
-                }).start();
-            }
-        }
-    });
+    // Refresh handler
+    const onRefresh = useCallback(async () => {
+        setRefreshing(true);
+        setTimeout(() => {
+            setRefreshing(false);
+        }, 1500);
+    }, []);
 
     useEffect(() => {
         const toValue = isSearchVisible ? 1 : 0;
         if (!isSearchVisible) {
             setSearchQuery('');
         }
-        Animated.timing(searchAnim, {
+        RNAnimated.timing(searchAnim, {
             toValue,
             duration: 300,
             useNativeDriver: false,
         }).start();
-    }, [isSearchVisible]);
-
-    // UPDATED: Handle menu closing
-    useEffect(() => {
-        if (!gestureState.isMenuOpen) {
-            setShouldShowMenu(false);
-            Animated.timing(contentTranslateX, {
-                toValue: 0,
-                duration: 250,
-                useNativeDriver: true
-            }).start();
-        }
-    }, [gestureState.isMenuOpen]);
+    }, [isSearchVisible, searchAnim]);
 
     const handleSwipeableOpen = (id, ref) => {
-        if (gestureState.isMenuOpen) return;
-        if (openSwipeableId && openSwipeableId !== id) {
-            swipeableRefs.current[openSwipeableId]?.close();
+        if (isMenuVisible) return;
+        if (openSwipeableId && openSwipeableId !== id && swipeableRefs.current[openSwipeableId]) {
+        swipeableRefs.current[openSwipeableId].close();
         }
         swipeableRefs.current[id] = ref.current;
         setOpenSwipeableId(id);
@@ -116,123 +72,103 @@ const MainView = ({
         setOpenSwipeableId(null);
         setHasOpenActions(false);
     };
-
-    const handleScroll = Animated.event(
-        [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-        { useNativeDriver: true }
-    );
     
     const filteredShinnings = (shinnings || []).filter(item =>
         item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         item.content.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
-    const searchBarHeight = searchAnim.interpolate({ 
+    const searchBarHeight = searchAnim.interpolate({
         inputRange: [0, 1], 
         outputRange: [0, 60] 
     });
 
+    const addButtonAnimatedStyle = useAnimatedStyle(() => {
+        return {
+            transform: [{ scale: addButtonScale.value }]
+        };
+    });
+
     const onPressInAdd = () => {
-        Animated.spring(addButtonScale, { 
-            toValue: 0.9, 
-            useNativeDriver: true 
-        }).start();
+        addButtonScale.value = withSpring(0.9);
     };
     
     const onPressOutAdd = () => {
-        Animated.spring(addButtonScale, { 
-            toValue: 1, 
-            useNativeDriver: true 
-        }).start();
+        addButtonScale.value = withSpring(1);
     };
 
     return (
         <SafeAreaView style={styles.safeArea}>
-            {/* UPDATED: Pass shouldShowMenu instead of gestureState.isMenuOpen */}
-            {shouldShowMenu && (
-                <View style={styles.menuBackground}>
-                    <View style={styles.menuContainer}>
-                        <View style={styles.menuHeader}>
-                            <Text style={styles.menuTitle}>Vicebrain</Text>
-                        </View>
-                        <Text style={styles.menuItem}>Search</Text>
-                        <Text style={styles.menuItem}>Shinning Firing</Text>
-                        <Text style={styles.menuItem}>Archive</Text>
-                        <Text style={styles.menuItem}>Trash</Text>
-                        <Text style={styles.menuItem}>Graph</Text>
-                        <View style={{ flex: 1 }} />
-                        <Text style={styles.menuItem}>Profile</Text>
-                        <Text style={styles.menuItem}>Sign Out</Text>
-                    </View>
-                </View>
-            )}
+            <StatusBar barStyle="dark-content" />            
+            <View style={styles.header}>
+                <TouchableOpacity onPress={onOpenMenu} style={styles.menuButton}>
+                    <MenuIcon />
+                </TouchableOpacity>
+                <Text style={styles.headerTitle}>
+                    {currentView.charAt(0).toUpperCase() + currentView.slice(1)}
+                </Text>
+                <TouchableOpacity style={styles.menuButton} onPress={onToggleSearch}>
+                    <FilterIcon />
+                </TouchableOpacity>
+            </View>
             
-            <Animated.View style={{ flex: 1 }}>
-                <Animated.View 
-                    style={{ 
-                        flex: 1, 
-                        backgroundColor: '#F8F9FA',
-                        transform: [{ translateX: contentTranslateX }]
-                    }}
-                    {...rightSwipePanResponder.panHandlers}
+            <RNAnimated.View style={[styles.searchBarContainer, { height: searchBarHeight }]}>
+                <TextInput 
+                    style={styles.searchInput} 
+                    placeholder="Search Shinnings..." 
+                    value={searchQuery} 
+                    onChangeText={setSearchQuery} 
+                />
+                <TouchableOpacity onPress={onToggleSearch}>
+                    <Text>Cancel</Text>
+                </TouchableOpacity>
+            </RNAnimated.View>
+            
+            {loading ? (
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color="#9CA3AF" />
+                </View>
+            ) : (
+
+                <ScrollView
+                    horizontal={false}
+                    showsVerticalScrollIndicator={false}
+                    scrollEnabled={!isMenuVisible}  // Disable scroll when menu is open
                 >
-                    <StatusBar barStyle="dark-content" />            
-                    <View style={styles.header}>
-                        <TouchableOpacity onPress={onOpenMenu} style={styles.menuButton}>
-                            <MenuIcon />
-                        </TouchableOpacity>
-                        <Text style={styles.headerTitle}>
-                            {currentView.charAt(0).toUpperCase() + currentView.slice(1)}
-                        </Text>
-                        <TouchableOpacity style={styles.menuButton}>
-                            <FilterIcon />
-                        </TouchableOpacity>
-                    </View>
-                    
-                    <Animated.View style={[styles.searchBarContainer, { height: searchBarHeight }]}>
-                        <TextInput 
-                            style={styles.searchInput} 
-                            placeholder="Search Shinnings..." 
-                            value={searchQuery} 
-                            onChangeText={setSearchQuery} 
+                <FlatList
+                    ref={flatListRef}
+                    data={filteredShinnings}
+                    keyExtractor={(item) => item.id}
+                    scrollEventThrottle={16}
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={refreshing}
+                            onRefresh={onRefresh}
+                            tintColor="#9CA3AF"
+                            colors={["#9CA3AF"]}
                         />
-                        <TouchableOpacity onPress={onToggleSearch}>
-                            <Text>Cancel</Text>
-                        </TouchableOpacity>
-                    </Animated.View>
-                    
-                    {loading ? (
-                        <View style={styles.loadingContainer}>
-                            <ActivityIndicator size="large" color="#9CA3AF" />
-                        </View>
-                    ) : (
-                        <AnimatedFlatList
-                            ref={flatListRef}
-                            data={filteredShinnings}
-                            keyExtractor={(item) => item.id}
-                            onScroll={handleScroll}
-                            scrollEventThrottle={16}
-                            renderItem={({ item }) => (
-                                <ListItem
-                                    item={item}
-                                    onSelectShinning={onSelectShinning}
-                                    onSetStatus={onSetStatus}
-                                    onDeletePermanently={onDeletePermanently}
-                                    onOpenEditModal={onOpenEditModal}
-                                    currentView={currentView}
-                                    onSwipeableOpen={handleSwipeableOpen}
-                                    onSwipeableClose={handleSwipeableClose}
-                                    isMenuVisible={gestureState.isMenuOpen}
-                                />
-                            )}
-                            contentContainerStyle={{ 
-                                paddingBottom: 120, 
-                                flexGrow: 1 
-                            }}
+                    }
+                    renderItem={({ item }) => (
+                        <ListItem
+                            item={item}
+                            onSelectShinning={onSelectShinning}
+                            onSetStatus={onSetStatus}
+                            onDeletePermanently={onDeletePermanently}
+                            onOpenEditModal={onOpenEditModal}
+                            currentView={currentView}
+                            onSwipeableOpen={handleSwipeableOpen}
+                            onSwipeableClose={handleSwipeableClose}
+                            isMenuVisible={isMenuVisible}
                         />
                     )}
-                </Animated.View>
-            </Animated.View>
+                    contentContainerStyle={{ 
+                        paddingBottom: 120, 
+                        flexGrow: 1 
+                    }}
+                    scrollEnabled={false}
+                />
+            </ScrollView>
+            )}
         
             <AnimatedPressable
                 onPress={onOpenAddModal}
@@ -240,12 +176,7 @@ const MainView = ({
                 onPressOut={onPressOutAdd}
                 style={[
                     styles.addButton, 
-                    { 
-                        transform: [
-                            { scale: addButtonScale },
-                            { translateX: contentTranslateX }
-                        ] 
-                    }
+                    addButtonAnimatedStyle
                 ]}
             >
                 <AddIcon />
@@ -259,54 +190,6 @@ const styles = StyleSheet.create({
         flex: 1, 
         backgroundColor: '#F8F9FA' 
     },
-    // ADDED: Menu background and container styles
-    menuBackground: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'transparent',
-        zIndex: 0
-    },
-    menuContainer: { 
-        width: MENU_WIDTH, 
-        height: '100%', 
-        backgroundColor: '#FFFFFF',
-        borderRightWidth: 1,
-        borderRightColor: '#E1E5E9',
-        elevation: 8,
-        shadowColor: '#000000',
-        shadowOffset: {
-            width: 2,
-            height: 0,
-        },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-        paddingTop: 40,
-    },
-    menuHeader: { 
-        paddingHorizontal: 16,  // Match main header
-        paddingVertical: 12,    // Match main header  
-        borderBottomWidth: 1, 
-        borderBottomColor: '#E9ECEF',
-        backgroundColor: '#FFFFFF',
-        minHeight: 60
-    },
-    menuTitle: { 
-        fontSize: 24, 
-        fontWeight: 'bold',
-        color: '#212529'
-    },
-    menuItem: { 
-        fontSize: 18, 
-        fontWeight: '500', 
-        color: '#212529',
-        paddingVertical: 15,
-        paddingHorizontal: 20,
-        borderBottomWidth: 0.5,
-        borderBottomColor: '#F1F3F5'
-    },
     header: { 
         flexDirection: 'row', 
         alignItems: 'center', 
@@ -316,7 +199,7 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1, 
         borderBottomColor: '#E9ECEF', 
         backgroundColor: 'white',
-        minHeight: 60  // ADDED: Match menu header height
+        minHeight: 60
     },
     menuButton: { 
         padding: 4, 

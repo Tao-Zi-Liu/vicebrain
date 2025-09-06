@@ -18,7 +18,6 @@ import firebaseService from '../services/firebaseService';
 import { useGestureContext } from '../context/GestureContext';
 import useGestureManager from '../hooks/useGestureManager';
 import { FlingGestureHandler, Directions, State } from 'react-native-gesture-handler';
-
 const ProfileScreen = ({ onBack }) => {
   const { state, actions } = useAppContext();
   const { gestureState } = useGestureContext();
@@ -82,12 +81,27 @@ const ProfileScreen = ({ onBack }) => {
       <Text style={styles.sectionTitle}>Account Information</Text>
       
       <View style={styles.profileCard}>
-        <Image 
-          source={{ 
-            uri: user?.photoURL || 'https://placehold.co/80x80/E9ECEF/495057?text=User' 
-          }} 
-          style={styles.avatar}
-        />
+        <TouchableOpacity 
+            onLongPress={() => {
+                Alert.alert(
+                    "Change Profile Picture",
+                    "Choose an option",
+                    [
+                        { text: "Take Photo", onPress: () => console.log("Take photo") },
+                        { text: "Choose from Gallery", onPress: () => console.log("Choose from gallery") },
+                        { text: "Cancel", style: "cancel" }
+                    ]
+                );
+            }}
+            delayLongPress={500}
+        >
+            <Image 
+                source={{ 
+                    uri: user?.photoURL || 'https://placehold.co/80x80/E9ECEF/495057?text=User' 
+                }} 
+                style={styles.avatar}
+            />
+        </TouchableOpacity>
         
         {isEditing ? (
           <View style={styles.editContainer}>
