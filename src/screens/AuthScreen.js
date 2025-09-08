@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect,useMemo } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, signInWithCredential, signInAnonymously,sendEmailVerification } from 'firebase/auth';
 import * as WebBrowser from 'expo-web-browser';
@@ -15,15 +15,13 @@ const AuthScreen = ({ showToast }) => {
 
     const auth = getAuth();
 
-    // --- IMPORTANT: Configure Client IDs for both platforms ---
-    // You get these from your Google Cloud Console / Firebase Project
-    const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-      iosClientId: '124363270573-64iq1cf8qo3jqf04fu1slchap459lpnn.apps.googleusercontent.com',
-      androidClientId: '124363270573-tu7m95kobf8v1mn1buu4l70cph55c8q6.apps.googleusercontent.com'
-      // webClientId is used for Android, do not get confused by the name
-    });
+    const googleConfig = React.useMemo(() => ({
+        iosClientId: '124363270573-64iq1cf8qo3jqf04fu1slchap459lpnn.apps.googleusercontent.com',
+        androidClientId: '124363270573-tu7m95kobf8v1mn1buu4l70cph55c8q6.apps.googleusercontent.com'
+    }), []);
 
-    // Handle the response from the Google authentication flow
+    const [request, response, promptAsync] = Google.useIdTokenAuthRequest(googleConfig);
+
     useEffect(() => {
         if (response?.type === 'success') {
             setLoading(true);
@@ -132,6 +130,9 @@ const AuthScreen = ({ showToast }) => {
                 keyboardType="email-address"
                 autoCapitalize="none"
                 placeholderTextColor="#ADB5BD"
+                autoCorrect={false}
+                autoComplete="email" 
+                textContentType="emailAddress" 
             />
             <TextInput
                 style={styles.input}
@@ -140,6 +141,9 @@ const AuthScreen = ({ showToast }) => {
                 onChangeText={setPassword}
                 secureTextEntry
                 placeholderTextColor="#ADB5BD"
+                autoCorrect={false}
+                autoComplete="password"
+                textContentType="password"
             />
 
             {loading ? (

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, memo } from 'react'; // <-- IMPORT memo
+import React, { useState, useEffect, memo , useCallback } from 'react'; 
 import {  View,  
           Text,  
           StyleSheet,  
@@ -18,37 +18,8 @@ import firebaseService from '../services/firebaseService';
 import { useGestureContext } from '../context/GestureContext';
 import useGestureManager from '../hooks/useGestureManager';
 import { FlingGestureHandler, Directions, State } from 'react-native-gesture-handler';
-const ProfileScreen = ({ onBack }) => {
-  const { state, actions } = useAppContext();
-  const { gestureState } = useGestureContext();
-  const { createBackGestureHandler } = useGestureManager();
 
-  const backGestureHandler = createBackGestureHandler(onBack);
-  const { user, userProfile } = state;
-  const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState({
-    displayName: '',
-    email: ''
-  });
-  const [passwordForm, setPasswordForm] = useState({
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: ''
-  });
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
-
-  useEffect(() => {
-    if (user) {
-      setEditForm({
-        displayName: user.displayName || '',
-        email: user.email || ''
-      });
-    }
-  }, [user]);
-
-  const Header = () => (
+const Header = memo(({ onBack }) => (
     <View style={styles.header}>
       <TouchableOpacity onPress={onBack} style={styles.backButton}>
         <Text style={styles.backIcon}>‹</Text>
@@ -56,8 +27,8 @@ const ProfileScreen = ({ onBack }) => {
       <Text style={styles.headerTitle}>Profile</Text>
       <View style={styles.headerSpace} />
     </View>
-  );
-  const GuestWarningSection = ({ onSignUp }) => (
+ ) );
+  const GuestWarningSection = memo(({ onSignUp }) => (
   <View style={styles.section}>
     <Text style={styles.sectionTitle}>Guest Account</Text>
     <View style={styles.guestCard}>
@@ -67,6 +38,7 @@ const ProfileScreen = ({ onBack }) => {
       </TouchableOpacity>
     </View>
   </View>
+  )
 );
   const AccountSection = ({
   isEditing,
@@ -110,6 +82,9 @@ const ProfileScreen = ({ onBack }) => {
               value={editForm.displayName}
               onChangeText={(text) => setEditForm(prev => ({ ...prev, displayName: text }))}
               placeholder="Display Name"
+              autoCorrect={false}
+              autoCapitalize="words"
+              returnKeyType="done"
             />
             <Text style={styles.editEmail}>{editForm.email}</Text>
             <View style={styles.editButtons}>
@@ -144,7 +119,7 @@ const ProfileScreen = ({ onBack }) => {
     </View>
   );
 
-  const SubscriptionSection = () => (
+  const SubscriptionSection = ({ userProfile }) => (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>Subscription & Membership</Text>
       
@@ -197,13 +172,13 @@ const ProfileScreen = ({ onBack }) => {
     </View>
   );
 
-  const SecuritySection = () => (
+  const SecuritySection = memo(({ onSignOut, onShowPasswordModal }) => (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>Security Center</Text>
       
       <TouchableOpacity 
         style={styles.menuItem}
-        onPress={() => setShowPasswordModal(true)}
+        onPress={onShowPasswordModal} 
       >
         <Text style={styles.menuItemText}>Change Password</Text>
         <Text style={styles.menuItemArrow}>›</Text>
@@ -216,15 +191,15 @@ const ProfileScreen = ({ onBack }) => {
       
       <TouchableOpacity 
         style={styles.menuItem}
-        onPress={handleSignOut}
+        onPress={onSignOut} 
       >
         <Text style={[styles.menuItemText, styles.signOutText]}>Sign Out</Text>
         <Text style={styles.menuItemArrow}>›</Text>
       </TouchableOpacity>
-    </View>
+    </View>)
   );
 
-  const DataSection = () => (
+  const DataSection = ({ state }) => (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>Data & Storage</Text>
       
@@ -260,7 +235,7 @@ const ProfileScreen = ({ onBack }) => {
     </View>
   );
 
-  const GeneralSection = () => (
+  const GeneralSection = ({ darkMode, setDarkMode }) => (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>General Settings</Text>
       
@@ -296,7 +271,14 @@ const ProfileScreen = ({ onBack }) => {
     </View>
   );
 
-  const PasswordModal = () => (
+  const PasswordModal = (
+      showPasswordModal, 
+      setShowPasswordModal, 
+      passwordForm, 
+      setPasswordForm, 
+      handleChangePassword, 
+      loading 
+  ) => (
     <Modal
       visible={showPasswordModal}
       animationType="slide"
@@ -358,6 +340,40 @@ const ProfileScreen = ({ onBack }) => {
       </View>
     </Modal>
   );
+  
+const ProfileScreen = ({ onBack }) => {
+  const { state, actions } = useAppContext();
+  const { gestureState } = useGestureContext();
+  const { createBackGestureHandler } = useGestureManager();
+
+  const backGestureHandler = createBackGestureHandler(onBack);
+  const { user, userProfile } = state;
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState({
+    displayName: '',
+    email: ''
+  });
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [darkMode, setDarkMode] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      setEditForm({
+        displayName: user.displayName || '',
+        email: user.email || ''
+      });
+    }
+  }, [user]);
+
+  const handleDisplayNameChange = useCallback((text) => {
+  setEditForm(prev => ({ ...prev, displayName: text }));
+  }, []);
 
   const handleSaveProfile = async () => {
     try {
@@ -440,7 +456,7 @@ const ProfileScreen = ({ onBack }) => {
     >
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
-      <Header />
+      <Header onBack={onBack}/>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* --- MODIFICATION START --- */}
@@ -467,16 +483,26 @@ const ProfileScreen = ({ onBack }) => {
               setIsEditing={setIsEditing}
               handleSaveProfile={handleSaveProfile}
             />
-            <SubscriptionSection /> 
-            <SecuritySection />
-            <DataSection />
-            <GeneralSection />
+            <SubscriptionSection userProfile={userProfile} /> 
+            <SecuritySection
+              onSignOut={handleSignOut}
+              onShowPasswordModal={() => setShowPasswordModal(true)} 
+            />
+            <DataSection state={state}/>
+            <GeneralSection darkMode={darkMode} setDarkMode={setDarkMode} />
           </>
         )}
         {/* --- MODIFICATION END --- */}
       </ScrollView>
 
-      <PasswordModal />
+      <PasswordModal 
+        showPasswordModal={showPasswordModal}
+        setShowPasswordModal={setShowPasswordModal}
+        passwordForm={passwordForm}
+        setPasswordForm={setPasswordForm}
+        handleChangePassword={handleChangePassword}
+        loading={loading}
+      />
     </SafeAreaView>
   </FlingGestureHandler>
   );
