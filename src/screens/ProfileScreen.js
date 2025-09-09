@@ -271,14 +271,14 @@ const Header = memo(({ onBack }) => (
     </View>
   );
 
-  const PasswordModal = (
-      showPasswordModal, 
-      setShowPasswordModal, 
-      passwordForm, 
-      setPasswordForm, 
-      handleChangePassword, 
-      loading 
-  ) => (
+  const PasswordModal = ({
+    showPasswordModal, 
+    setShowPasswordModal, 
+    passwordForm, 
+    setPasswordForm, 
+    handleChangePassword, 
+    loading 
+    }) => (
     <Modal
       visible={showPasswordModal}
       animationType="slide"
@@ -378,7 +378,7 @@ const ProfileScreen = ({ onBack }) => {
   const handleSaveProfile = async () => {
     try {
       setLoading(true);
-      await firebaseService.updateUserProfile(user.uid, {
+      await firebaseService.createOrUpdateUserProfile(user.uid, {
         displayName: editForm.displayName
       });
       setIsEditing(false);

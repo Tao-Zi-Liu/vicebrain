@@ -129,45 +129,44 @@ const MainView = ({
                     <ActivityIndicator size="large" color="#9CA3AF" />
                 </View>
             ) : (
-
                 <ScrollView
                     horizontal={false}
                     showsVerticalScrollIndicator={false}
-                    scrollEnabled={!isMenuVisible}  // Disable scroll when menu is open
+                    scrollEnabled={!isMenuVisible}
                 >
-                <FlatList
-                    ref={flatListRef}
-                    data={filteredShinnings}
-                    keyExtractor={(item) => item.id}
-                    scrollEventThrottle={16}
-                    refreshControl={
-                        <RefreshControl
-                            refreshing={refreshing}
-                            onRefresh={onRefresh}
-                            tintColor="#9CA3AF"
-                            colors={["#9CA3AF"]}
-                        />
-                    }
-                    renderItem={({ item }) => (
-                        <ListItem
-                            item={item}
-                            onSelectShinning={onSelectShinning}
-                            onSetStatus={onSetStatus}
-                            onDeletePermanently={onDeletePermanently}
-                            onOpenEditModal={onOpenEditModal}
-                            currentView={currentView}
-                            onSwipeableOpen={handleSwipeableOpen}
-                            onSwipeableClose={handleSwipeableClose}
-                            isMenuVisible={isMenuVisible}
-                        />
-                    )}
-                    contentContainerStyle={{ 
-                        paddingBottom: 120, 
-                        flexGrow: 1 
-                    }}
-                    scrollEnabled={false}
-                />
-            </ScrollView>
+                    <FlatList
+                        ref={flatListRef}
+                        data={filteredShinnings}
+                        keyExtractor={(item) => item.id}
+                        scrollEventThrottle={16}
+                        refreshControl={
+                            <RefreshControl
+                                refreshing={refreshing}
+                                onRefresh={onRefresh}
+                                tintColor="#9CA3AF"
+                                colors={["#9CA3AF"]}
+                            />
+                        }
+                        renderItem={({ item }) => (
+                            <ListItem
+                                item={item}
+                                onSelectShinning={onSelectShinning}
+                                onSetStatus={onSetStatus}
+                                onDeletePermanently={onDeletePermanently}
+                                onOpenEditModal={onOpenEditModal}
+                                currentView={currentView}
+                                onSwipeableOpen={handleSwipeableOpen}
+                                onSwipeableClose={handleSwipeableClose}
+                                isMenuVisible={isMenuVisible}
+                            />
+                        )}
+                        contentContainerStyle={{ 
+                            paddingBottom: 120, 
+                            flexGrow: 1 
+                        }}
+                        scrollEnabled={false}
+                    />
+                </ScrollView>
             )}
         
             <AnimatedPressable

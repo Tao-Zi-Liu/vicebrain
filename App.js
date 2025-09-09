@@ -1,5 +1,3 @@
-// App.js - FINAL CORRECTED VERSION
-
 import React, { useState } from 'react';
 import { View, Dimensions, TouchableOpacity, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -16,7 +14,6 @@ import ProfileScreen from './src/screens/ProfileScreen';
 import KnowledgeGraphScreen from './src/screens/KnowledgeGraphScreen';
 import SplashScreen from './src/components/SplashScreen';
 import Toast from './src/components/Toast';
-import AddModal from './src/components/AddModal';
 import Menu from './src/components/Menu';
 import { GestureProvider } from './src/context/GestureContext';
 import useScreenNavigation from './src/hooks/useScreenNavigation';
@@ -26,6 +23,8 @@ const MENU_WIDTH = Dimensions.get('window').width * 0.75;
 const AppContent = () => {
   const { state, actions } = useAppContext();
   useShinnings();
+  
+  const ShinningEditorScreen = require('./src/screens/ShinningEditorScreen').default;
 
   const [currentScreen, setCurrentScreen] = useState('main');
   const [isSearchVisible, setIsSearchVisible] = useState(false);
@@ -191,7 +190,7 @@ const AppContent = () => {
         <Toast message={state.toast.message} type={state.toast.type} onHide={actions.hideToast} />
       )}
       {state.modals.add && (
-        <AddModal
+        <ShinningEditorScreen
           visible={state.modals.add}
           onClose={() => {
             actions.toggleModal('add', false);
