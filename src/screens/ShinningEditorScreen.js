@@ -1,5 +1,4 @@
-// ShinningEditorScreen.js
-
+// ShinningEditorScreen.js  
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
@@ -15,19 +14,34 @@ import {
   Keyboard,
   Alert,
   Dimensions,
-  KeyboardAvoidingView,
   Platform,
-  TouchableWithoutFeedback
+  TouchableWithoutFeedback,
+  ActivityIndicator,
+  ScrollView
 } from 'react-native';
+import { useAppContext } from '../context/AppContext';
+import firebaseService from '../services/firebaseService';
+import offlineQueueService from '../services/offlineQueueService';
+import useAutoSave from '../hooks/useAutoSave';
+import useDraftSystem from '../hooks/useDraftSystem';
 
 const { width, height } = Dimensions.get('window');
 
 const ShinningEditorScreen = ({ visible, onClose, shinningToEdit }) => {
- // Core content state
- const [title, setTitle] = useState('');
- const [content, setContent] = useState('');
- const [suggestedTitle, setSuggestedTitle] = useState('');
- const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const { state, actions } = useAppContext();
+  const { user } = state;
+// Core content state
+  const [title, setTitle] = useState('');
+  const [content, setContent] = useState('');
+  const [tags, setTags] = useState('');
+  const [suggestedTitle, setSuggestedTitle] = useState('');
+  const [isOnline, setIsOnline] = useState(true);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [versions, setVersions] = useState([]);
+  const [loadingVersions, setLoadingVersions] = useState(false);
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0)
  
  // UI state
  const [isTemplateModalVisible, setIsTemplateModalVisible] = useState(false);
@@ -39,6 +53,11 @@ const ShinningEditorScreen = ({ visible, onClose, shinningToEdit }) => {
  const contentInputRef = useRef(null);
  const zenModeOpacity = useRef(new Animated.Value(1)).current;
  const relatedPanelTranslateX = useRef(new Animated.Value(width)).current;
+ const initialContentRef = useRef({ title: '', content: '', tags: '' });
+
+ // Auto-save and draft hooks
+ const { autoSave, isSaving } = useAutoSave(shinningToEdit?.id, 2000);
+ const { hasDraft, loadDraft, saveDraft, clearDraft } = useDraftSystem(shinningToEdit?.id);
  
  // Mock data
  const templates = [
@@ -59,14 +78,21 @@ const ShinningEditorScreen = ({ visible, onClose, shinningToEdit }) => {
 
  // Initialize editing mode
  useEffect(() => {
-   if (visible) {
-     if (shinningToEdit) {
-       setTitle(shinningToEdit.title || '');
-       setContent(shinningToEdit.content || '');
-     } else {
-       setTitle('');
-       setContent('');
-     }
+  if (visible) {
+    if (shinningToEdit) {
+      initialContentRef.current = {
+        title: shinningToEdit.title || '',
+        content: shinningToEdit.content || '',
+        tags: shinningToEdit.tags?.join(', ') || ''
+      };
+      setTitle(shinningToEdit.title || '');
+      setContent(shinningToEdit.content || '');
+      setTags(shinningToEdit.tags?.join(', ') || '');
+    } else {
+      setTitle('');
+      setContent('');
+      setTags('');
+    }
      
      // Auto-focus content input with slight delay to ensure modal is fully rendered
      setTimeout(() => {
@@ -76,6 +102,42 @@ const ShinningEditorScreen = ({ visible, onClose, shinningToEdit }) => {
      }, 300);
    }
  }, [visible, shinningToEdit]);
+
+// Auto-save effect
+useEffect(() => {
+  if (shinningToEdit && hasUnsavedChanges && !isSaving) {
+    if (title || content) {
+      const tagsArray = (tags || '').split(',').map(tag => tag.trim()).filter(Boolean);
+      autoSave({ title, content, tags: tagsArray });
+    }
+  }
+}, [title, content, tags, shinningToEdit, hasUnsavedChanges, isSaving, autoSave]);
+
+// Reset unsaved changes after successful save
+useEffect(() => {
+  if (shinningToEdit && !isSaving && hasUnsavedChanges) {
+    // Check if current content matches what was saved
+    const tagsArray = (tags || '').split(',').map(tag => tag.trim()).filter(Boolean);
+    const currentHash = JSON.stringify({ title, content, tags: tagsArray });
+    const savedHash = JSON.stringify(initialContentRef.current);
+    
+    // If we just finished saving, update the ref
+    if (currentHash !== savedHash) {
+      const timer = setTimeout(() => {
+        initialContentRef.current = { title, content, tags };
+      }, 2500); // Update after save completes
+      
+      return () => clearTimeout(timer);
+    }
+  }
+}, [shinningToEdit, isSaving, hasUnsavedChanges, title, content, tags]);
+
+useEffect(() => {
+  if (shinningToEdit && !isSaving) {
+    // When save completes, update the baseline
+    initialContentRef.current = { title, content, tags };
+  }
+}, [isSaving, shinningToEdit, title, content, tags]);
 
  // Live title suggestion logic
  useEffect(() => {
@@ -195,11 +257,73 @@ const ShinningEditorScreen = ({ visible, onClose, shinningToEdit }) => {
  }, [content, linkSuggestion]);
 
  // Save handler
- const handleSave = useCallback(() => {
-   console.log('Saving Shinning:', { title: title || suggestedTitle, content });
-   // TODO: Implement actual save functionality
-   onClose();
- }, [title, suggestedTitle, content, onClose]);
+ const handleSave = useCallback(async () => {
+  console.log('========== SAVE STARTED ==========');
+  console.log('User:', user);
+  console.log('User ID:', user?.uid);
+  console.log('Title:', title);
+  console.log('Content:', content);
+  console.log('Tags:', tags);
+  
+  if (!title.trim() && !content.trim()) {
+    console.log('ERROR: Empty title and content');
+    actions.showToast('Title and content cannot be empty', 'ERROR');
+    return;
+  }
+
+  const finalTitle = title.trim() || suggestedTitle || 'Untitled';
+  const tagsArray = (tags || '').split(',').map(tag => tag.trim()).filter(Boolean);
+  
+  const shinningData = {
+    title: finalTitle,
+    content: content.trim(),
+    tags: tagsArray,
+    type: 'text'
+  };
+
+  console.log('Final Shinning Data:', JSON.stringify(shinningData, null, 2));
+  console.log('Is Edit Mode?', !!shinningToEdit);
+
+  try {
+    if (shinningToEdit) {
+      console.log('UPDATE MODE: Editing existing shinning:', shinningToEdit.id);
+      await firebaseService.updateShinning(user.uid, shinningToEdit.id, shinningData);
+      
+      await firebaseService.saveVersion(
+        user.uid,
+        shinningToEdit.id,
+        content.trim(),
+        finalTitle
+      );
+      
+      console.log('✅ Update successful');
+      actions.showToast('Shinning updated successfully!');
+    } else {
+      console.log('CREATE MODE: Creating new shinning...');
+      console.log('Calling firebaseService.addShinning with userId:', user.uid);
+      
+      const newId = await firebaseService.addShinning(user.uid, shinningData);
+      
+      console.log('✅ Created successfully! New ID:', newId);
+      actions.showToast('Shinning created successfully!');
+    }
+    
+    await clearDraft();
+    initialContentRef.current = { title: finalTitle, content: content.trim(), tags: tags || '' };
+    setHasUnsavedChanges(false);
+    console.log('Closing editor...');
+    onClose();
+    console.log('========== SAVE COMPLETED ==========');
+  } catch (error) {
+    console.error('========== SAVE FAILED ==========');
+    console.error('Error object:', error);
+    console.error('Error message:', error.message);
+    console.error('Error code:', error.code);
+    console.error('Error stack:', error.stack);
+    
+    actions.showToast('Failed to save: ' + error.message, 'ERROR');
+  }
+}, [title, content, tags, suggestedTitle, shinningToEdit, user, actions, onClose, clearDraft, saveDraft]);
 
  const renderTemplateModal = () => (
       <Modal
@@ -306,26 +430,89 @@ const renderRelatedPanel = () => (
   </Animated.View>
 );
 
- const renderHeader = () => (
-   <Animated.View style={[styles.header, { opacity: zenModeOpacity }]}>
-     <TouchableOpacity style={styles.headerButton} onPress={onClose}>
-       <Text style={styles.headerButtonText}>Cancel</Text>
-     </TouchableOpacity>
-     
-     <Text style={styles.headerTitle}>
-       {shinningToEdit ? 'Edit Shinning' : 'New Shinning'}
-     </Text>
-     
-     <TouchableOpacity style={styles.headerButton} onPress={handleSave}>
-       <Text style={[styles.headerButtonText, styles.saveButtonText]}>Save</Text>
-     </TouchableOpacity>
-   </Animated.View>
- );
+// Handle close with proper feedback
+// Handle close with hybrid approach
+const handleClose = useCallback(() => {
+  if (shinningToEdit) {
+    // Editing existing - auto-save already handled it, just close
+    if (isSaving) {
+      // If currently saving, wait a moment
+      Alert.alert(
+        'Saving in Progress',
+        'Your changes are being saved. Please wait a moment.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    onClose();
+  } else {
+    // Creating new - check if they want to save draft
+    if (title.trim() || content.trim()) {
+      Alert.alert(
+        'Save Draft?',
+        'You have unsaved content. Save as draft to continue later?',
+        [
+          {
+            text: 'Discard',
+            style: 'destructive',
+            onPress: () => {
+              clearDraft();
+              onClose();
+            }
+          },
+          {
+            text: 'Save Draft',
+            onPress: () => {
+              saveDraft({ title, content, tags });
+              actions.showToast('Draft saved');
+              onClose();
+            }
+          },
+          {
+            text: 'Cancel',
+            style: 'cancel'
+          }
+        ]
+      );
+    } else {
+      onClose();
+    }
+  }
+}, [shinningToEdit, title, content, tags, isSaving, onClose, clearDraft, saveDraft, actions]);
+
+const renderHeader = () => (
+  <Animated.View style={[styles.header, { opacity: zenModeOpacity }]}>
+    <TouchableOpacity style={styles.headerButton} onPress={handleClose}>
+      <Text style={styles.headerButtonText}>Cancel</Text>
+    </TouchableOpacity>
+    
+    <View style={{ flex: 1, alignItems: 'center' }}>
+      <Text style={styles.headerTitle}>
+        {shinningToEdit ? 'Edit Shinning' : 'New Shinning'}
+      </Text>
+      {shinningToEdit && (
+        <>
+          {isSaving ? (
+            <Text style={{ fontSize: 12, color: '#007AFF', marginTop: 2 }}>Saving...</Text>
+          ) : hasUnsavedChanges ? (
+            <Text style={{ fontSize: 12, color: '#FFA500', marginTop: 2 }}>Unsaved changes</Text>
+          ) : (
+            <Text style={{ fontSize: 12, color: '#28A745', marginTop: 2 }}>All changes saved</Text>
+          )}
+        </>
+      )}
+    </View>
+    
+    <TouchableOpacity style={styles.headerButton} onPress={handleSave}>
+      <Text style={[styles.headerButtonText, styles.saveButtonText]}>Save</Text>
+    </TouchableOpacity>
+  </Animated.View>
+);
 
  if (!visible) return null;
 
 return (
-  <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+  <Modal visible={visible} animationType="slide" onRequestClose={handleClose}>
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
       

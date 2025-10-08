@@ -1,75 +1,51 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import firebaseService from '../services/firebaseService';
 import { useAppContext } from '../context/AppContext';
-
-// Debounce utility
-const debounce = (func, wait) => {
-  let timeout;
-  return function executedFunction(...args) {
-    const later = () => {
-      clearTimeout(timeout);
-      func(...args);
-    };
-    clearTimeout(timeout);
-    timeout = setTimeout(later, wait);
-  };
-};
 
 const useAutoSave = (shinningId, delay = 2000) => {
   const { state, actions } = useAppContext();
   const { user } = state;
-  const saveTimeoutRef = useRef(null);
+  const [isSaving, setIsSaving] = useState(false);
   const lastSavedRef = useRef(null);
-  const isSavingRef = useRef(false);
-
-  const saveToFirebase = useCallback(async (data) => {
-    if (!user || !shinningId || isSavingRef.current) return;
-
-    try {
-      isSavingRef.current = true;
-      
-      // Check if content actually changed
-      const contentHash = JSON.stringify(data);
-      if (lastSavedRef.current === contentHash) {
-        isSavingRef.current = false;
-        return;
-      }
-
-      await firebaseService.updateShinning(user.uid, shinningId, data);
-      lastSavedRef.current = contentHash;
-      
-      // Show subtle save indicator
-      actions.showToast('Saved', 'SUCCESS');
-    } catch (error) {
-      console.error('Auto-save failed:', error);
-      actions.showToast('Failed to auto-save', 'ERROR');
-    } finally {
-      isSavingRef.current = false;
-    }
-  }, [user, shinningId, actions]);
-
-  const debouncedSave = useCallback(
-    debounce((data) => {
-      saveToFirebase(data);
-    }, delay),
-    [saveToFirebase, delay]
-  );
+  const timeoutRef = useRef(null);
 
   const autoSave = useCallback((data) => {
-    if (!data.title && !data.content) return; // Don't save empty content
-    debouncedSave(data);
-  }, [debouncedSave]);
+    if (!user || !shinningId || !data.title && !data.content) return;
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
+    const contentHash = JSON.stringify(data);
+    if (lastSavedRef.current === contentHash) {
+      return; // Content hasn't changed
+    }
+
+    // Clear previous timeout
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+
+    // Set new timeout
+    timeoutRef.current = setTimeout(async () => {
+      try {
+        setIsSaving(true);
+        console.log('Auto-saving now...');
+        
+        await firebaseService.updateShinning(user.uid, shinningId, data);
+        lastSavedRef.current = contentHash;
+        
+        console.log('Auto-save completed');
+        
+        // Keep isSaving true for a moment so UI can show "Saving..."
+        setTimeout(() => {
+          setIsSaving(false);
+        }, 500);
+      } catch (error) {
+        console.error('Auto-save failed:', error);
+        actions.showToast('Failed to auto-save', 'ERROR');
+        setIsSaving(false);
       }
-    };
-  }, []);
+    }, delay);
+  }, [user, shinningId, delay, actions]);
 
-  return { autoSave, isSaving: isSavingRef.current };
+  return { autoSave, isSaving };
 };
 
 export default useAutoSave;

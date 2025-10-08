@@ -73,10 +73,15 @@ const MainView = ({
         setHasOpenActions(false);
     };
     
-    const filteredShinnings = (shinnings || []).filter(item =>
-        item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.content.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const filteredShinnings = (shinnings || []).filter(item => {
+        if (!item) return false;
+        
+        const titleMatch = item.title ? item.title.toLowerCase().includes(searchQuery.toLowerCase()) : false;
+        const contentMatch = item.content ? item.content.toLowerCase().includes(searchQuery.toLowerCase()) : false;
+        const tagsMatch = item.tags ? item.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase())) : false;
+        
+        return titleMatch || contentMatch || tagsMatch;
+      });
 
     const searchBarHeight = searchAnim.interpolate({
         inputRange: [0, 1], 
